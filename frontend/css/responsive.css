@@ -1,0 +1,97 @@
+/* ==========================================================================
+   STMS - RESPONSIVE BREAKPOINTS & MOBILE NAVIGATION
+   ========================================================================== */
+
+/* Tablets & Small Desktops (max-width: 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablets (max-width: 768px) */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 260px;
+    box-shadow: var(--shadow-lg);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+  .topbar {
+    padding: 0 16px;
+  }
+  .main-content {
+    padding: 16px;
+    gap: 18px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  #traffic-map {
+    height: 380px;
+  }
+  .sim-controls {
+    display: none; /* Accessible in Settings on mobile */
+  }
+}
+
+/* Mobile Phones (max-width: 480px) */
+@media (max-width: 480px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .signals-grid {
+    grid-template-columns: 1fr;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .modal-card {
+    width: 95%;
+  }
+  .table th, .table td {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Print Stylesheet for Traffic Reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .sidebar, .topbar, .btn, .sim-controls, #toast-container, .modal-backdrop {
+    display: none !important;
+  }
+  .main-wrapper {
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  .card {
+    background: #ffffff !important;
+    border: 1px solid #ccc !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+  .table th {
+    background-color: #f1f5f9 !important;
+    color: #000000 !important;
+  }
+  .table td {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+}

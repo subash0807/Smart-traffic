@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Traffic Management System (STMS) - Smart City Control Portal</title>
+  <meta name="description" content="College OOASE Smart Traffic Management System - Real-time traffic monitoring, signal control, and emergency vehicle green corridor management dashboard.">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+
+  <!-- Leaflet.js CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- Leaflet.js CDN -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- Sidebar Navigation Drawer -->
+  <aside class="sidebar" id="app-sidebar">
+    <div class="sidebar-header">
+      <div class="brand-icon">🚦</div>
+      <div class="brand-text">
+        <span class="brand-title">STMS PORTAL</span>
+        <span class="brand-subtitle">Smart City Traffic Center</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-menu" id="sidebar-menu-nav">
+      <div class="menu-category">Command & Control</div>
+      <button type="button" class="nav-item active" data-section="dashboard" onclick="switchSection('dashboard')" aria-label="Dashboard">
+        <span class="nav-icon">📊</span>
+        <span class="nav-text">Dashboard</span>
+      </button>
+      <button type="button" class="nav-item" data-section="traffic" onclick="switchSection('traffic')" aria-label="Live Traffic">
+        <span class="nav-icon">🚗</span>
+        <span class="nav-text">Live Traffic</span>
+      </button>
+      <button type="button" class="nav-item" data-section="map" onclick="switchSection('map')" aria-label="Interactive Map">
+        <span class="nav-icon">🗺️</span>
+        <span class="nav-text">Interactive Map</span>
+      </button>
+      <button type="button" class="nav-item" data-section="signals" onclick="switchSection('signals')" aria-label="Signal Control">
+        <span class="nav-icon">🚥</span>
+        <span class="nav-text">Signal Control</span>
+      </button>
+      <button type="button" class="nav-item" data-section="emergency" onclick="switchSection('emergency')" aria-label="Emergency Priority">
+        <span class="nav-icon">🚨</span>
+        <span class="nav-text">Emergency Priority</span>
+      </button>
+
+      <div class="menu-category">Operations</div>
+      <button type="button" class="nav-item" data-section="alerts" id="nav-btn-alerts" onclick="switchSection('alerts')" aria-label="Alerts & Incidents">
+        <span class="nav-icon">🔔</span>
+        <span class="nav-text">Alerts & Incidents</span>
+        <span class="badge badge-severe nav-badge-pill" id="nav-alert-badge" style="display: none; margin-left: auto;">0</span>
+      </button>
+      <button type="button" class="nav-item" data-section="sensors" onclick="switchSection('sensors')" aria-label="Sensor Fleet">
+        <span class="nav-icon">📡</span>
+        <span class="nav-text">Sensor Fleet</span>
+      </button>
+      <button type="button" class="nav-item" data-section="reports" onclick="switchSection('reports')" aria-label="Reports & Analytics">
+        <span class="nav-icon">📈</span>
+        <span class="nav-text">Reports & Analytics</span>
+      </button>
+
+      <div class="menu-category role-admin-only">Administration</div>
+      <button type="button" class="nav-item role-admin-only" data-section="users" onclick="switchSection('users')" aria-label="User Management">
+        <span class="nav-icon">👥</span>
+        <span class="nav-text">User Management</span>
+      </button>
+      <button type="button" class="nav-item" data-section="settings" onclick="switchSection('settings')" aria-label="System Settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-text">System Settings</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info-text">
+        <div id="user-display-name" style="font-size: 0.825rem; font-weight: 600;">Officer</div>
+        <span id="user-role-badge" class="badge badge-normal" style="font-size: 0.65rem;">Officer</span>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <button class="btn btn-outline btn-sm" onclick="openAuthModal()" title="Switch User / Login">Switch</button>
+        <button class="btn btn-outline btn-sm" onclick="auth.logout()" title="Logout of STMS">Exit</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Viewport Wrapper -->
+  <div class="main-wrapper">
+
+    <!-- Top Navigation Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle-btn" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle Navigation Sidebar">
+          ☰
+        </button>
+        <div>
+          <span style="font-size: 0.775rem; color: var(--text-muted); text-transform: uppercase;">Chennai City Division</span>
+          <h2 id="current-section-title" style="font-size: 1.1rem; line-height: 1.2;">Control Dashboard</h2>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Live Simulation Controller -->
+        <div class="sim-controls">
+          <div class="sim-status-indicator" id="sim-indicator">
+            <span class="status-dot dot-normal dot-pulse"></span>
+            <span id="sim-status-label">SIM RUNNING</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="handleSimulationStep()" title="Advance simulation by 1 cycle">
+            Step ⏩
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-toggle-sim" onclick="handleToggleSimulation()">
+            Pause ⏸
+          </button>
+        </div>
+
+        <!-- System Health Dot Indicator -->
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+          <span class="status-dot dot-normal dot-pulse" id="topbar-health-dot"></span>
+          <span>API Connected</span>
+        </div>
+
+        <button class="btn btn-primary btn-sm" onclick="openAuthModal()" title="Switch Account or Login">👤 Switch User</button>
+        <button class="btn btn-outline btn-sm" onclick="auth.logout()">Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Content Sections -->
+    <main class="main-content">
+
+      <!-- SECTION 1: DASHBOARD OVERVIEW -->
+      <section id="section-dashboard" class="content-section">
+        <!-- Watermark Demonstration Banner -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+          <div class="simulation-watermark">
+            🛡 Demonstration Mode: All traffic parameters and signals reflect real-time simulation algorithms.
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">
+            Last synchronized: <span id="last-refresh-time" style="font-family: monospace;">-</span>
+            <button class="btn btn-outline btn-sm" style="margin-left: 8px;" onclick="loadDashboardData()">Refresh ⟳</button>
+          </div>
+        </div>
+
+        <!-- Emergency Active Corridor Alert Banner (if any) -->
+        <div id="dashboard-emergency-banner" style="display: none; margin-bottom: 8px;"></div>
+
+        <!-- KPI Metrics Grid -->
+        <div class="kpi-grid">
+          <div class="kpi-card kpi-normal">
+            <div class="kpi-top">
+              <span class="kpi-label">Monitored Junctions</span>
+              <span class="kpi-icon">📍</span>
+            </div>
+            <div class="kpi-value" id="kpi-total-locations">7</div>
+            <div class="kpi-subtext">Active Road Sensors Online</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Vehicles Detected</span>
+              <span class="kpi-icon">🚗</span>
+            </div>
+            <div class="kpi-value" id="kpi-total-vehicles">0</div>
+            <div class="kpi-subtext">Cumulative city queue volume</div>
+          </div>
+
+          <div class="kpi-card kpi-normal">
+            <div class="kpi-top">
+              <span class="kpi-label">Normal Flow</span>
+              <span class="kpi-icon">🟢</span>
+            </div>
+            <div class="kpi-value" id="kpi-normal-traffic">0</div>
+            <div class="kpi-subtext">Speed > 40 km/h, Nominal</div>
+          </div>
+
+          <div class="kpi-card kpi-moderate">
+            <div class="kpi-top">
+              <span class="kpi-label">Congested Junctions</span>
+              <span class="kpi-icon">🟡</span>
+            </div>
+            <div class="kpi-value" id="kpi-congested-traffic">0</div>
+            <div class="kpi-subtext">Moderate & Heavy queues</div>
+          </div>
+
+          <div class="kpi-card kpi-severe">
+            <div class="kpi-top">
+              <span class="kpi-label">Severe Incidents</span>
+              <span class="kpi-icon">🔴</span>
+            </div>
+            <div class="kpi-value" id="kpi-severe-incidents">0</div>
+            <div class="kpi-subtext">Speed &lt; 15 km/h, Bottlenecks</div>
+          </div>
+
+          <div class="kpi-card kpi-emergency">
+            <div class="kpi-top">
+              <span class="kpi-label">Emergency Dispatches</span>
+              <span class="kpi-icon">🚑</span>
+            </div>
+            <div class="kpi-value" id="kpi-active-emergency">0</div>
+            <div class="kpi-subtext">Active Priority Requests</div>
+          </div>
+        </div>
+
+        <!-- Interactive Charts Grid -->
+        <div class="charts-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><span>📊</span> Vehicle Volume by Monitored Junction</h3>
+              <span class="badge badge-secondary">Real-Time</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-vehicles"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><span>🥧</span> City Congestion Level Breakdown</h3>
+              <span class="badge badge-secondary">Severity Ratio</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-congestion"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><span>⚡</span> Average Vehicle Speed by Corridor (km/h)</h3>
+              <span class="badge badge-secondary">Speed Telemetry</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-speed"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><span>🚥</span> Traffic Signal Phase Distribution</h3>
+              <span class="badge badge-secondary">Active Cycles</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-signals"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Alerts Summary Panel -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><span>🔔</span> Recent Operational Alerts & Anomalies</h3>
+            <button class="btn btn-outline btn-sm" onclick="switchSection('alerts')">View Full Incident Log &rarr;</button>
+          </div>
+          <div id="dashboard-alerts-list" class="alerts-list">
+            <!-- Populated dynamically by dashboard.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: LIVE TRAFFIC MONITORING -->
+      <section id="section-traffic" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Live Traffic Monitoring</h2>
+            <p class="page-subtitle">Granular junction telemetry, volume counts, speed detection, and classification</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" onclick="openAddTrafficModal()">+ New Traffic Reading</button>
+            <button class="btn btn-secondary" onclick="loadTrafficTable(trafficCurrentPage)">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="card" style="padding: 16px;">
+          <div class="input-row">
+            <div>
+              <label class="form-label">Search Location</label>
+              <input type="text" id="traffic-search" class="form-control" placeholder="Search by junction name..." oninput="loadTrafficTable(1)">
+            </div>
+            <div>
+              <label class="form-label">Congestion Filter</label>
+              <select id="traffic-filter-congestion" class="form-select" onchange="loadTrafficTable(1)">
+                <option value="ALL">All Levels</option>
+                <option value="NORMAL">Normal Flow</option>
+                <option value="MODERATE">Moderate Congestion</option>
+                <option value="HEAVY">Heavy Congestion</option>
+                <option value="SEVERE">Severe Bottleneck</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Traffic Table -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Junction & GPS</th>
+                  <th>Vehicles</th>
+                  <th>Avg Speed</th>
+                  <th>Classification</th>
+                  <th>Sensor ID</th>
+                  <th>Source</th>
+                  <th>Recorded Time</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="traffic-table-body">
+                <!-- Dynamically populated by traffic.js -->
+              </tbody>
+            </table>
+          </div>
+          <div id="traffic-pagination" style="padding: 14px 20px; border-top: 1px solid var(--border-subtle); background: var(--bg-surface);"></div>
+        </div>
+      </section>
+
+      <!-- SECTION 3: INTERACTIVE TRAFFIC MAP -->
+      <section id="section-map" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Interactive City Traffic Map</h2>
+            <p class="page-subtitle">Geographic visualization of monitored intersections with real-time congestion heat indicators</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="loadMapJunctions()">Refresh Markers ⟳</button>
+          </div>
+        </div>
+
+        <!-- Map Layer Filters -->
+        <div class="map-filter-bar">
+          <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Filter Severity:</span>
+          <button class="btn btn-outline btn-sm map-filter-btn active" data-level="ALL" onclick="filterMap('ALL')">All Monitored</button>
+          <button class="btn btn-outline btn-sm map-filter-btn" data-level="NORMAL" onclick="filterMap('NORMAL')">Normal (<span style="color: var(--status-normal);">●</span>)</button>
+          <button class="btn btn-outline btn-sm map-filter-btn" data-level="MODERATE" onclick="filterMap('MODERATE')">Moderate (<span style="color: var(--status-moderate);">●</span>)</button>
+          <button class="btn btn-outline btn-sm map-filter-btn" data-level="HEAVY" onclick="filterMap('HEAVY')">Heavy (<span style="color: var(--status-heavy);">●</span>)</button>
+          <button class="btn btn-outline btn-sm map-filter-btn" data-level="SEVERE" onclick="filterMap('SEVERE')">Severe (<span style="color: var(--status-severe);">●</span>)</button>
+        </div>
+
+        <!-- Leaflet Map Container -->
+        <div class="card" style="padding: 10px;">
+          <div id="traffic-map"></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 0.775rem; color: var(--text-muted);">
+            <div>Coordinates: Chennai Metropolitan Grid (13.04° N, 80.22° E) | OpenStreetMap Standard Tiles</div>
+            <div>Click any marker to inspect queue length, speed, and signal cycle status.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4: TRAFFIC SIGNAL MANAGEMENT -->
+      <section id="section-signals" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Traffic Signal Management</h2>
+            <p class="page-subtitle">Simulated signal phasing, adaptive timing recommendations, and manual control overrides</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="loadSignals()">Refresh Signals ⟳</button>
+          </div>
+        </div>
+
+        <div class="simulation-watermark" style="margin-bottom: 14px;">
+          ⚠️ Safety Note: Software simulation only. Commands execute strictly within software models and do not manipulate physical road infrastructure.
+        </div>
+
+        <!-- Signals Grid -->
+        <div id="signals-grid-container" class="signals-grid">
+          <!-- Populated dynamically by signals.js -->
+        </div>
+      </section>
+
+      <!-- SECTION 5: EMERGENCY VEHICLE PRIORITY -->
+      <section id="section-emergency" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Emergency Vehicle Priority Dispatch</h2>
+            <p class="page-subtitle">Rapid green wave corridor preemption for ambulances, fire engines, and police escorts</p>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateEmergencyModal()">+ Request Emergency Corridor</button>
+        </div>
+
+        <div class="simulation-watermark" style="margin-bottom: 14px;">
+          🚨 Preemption Engine: Approving an emergency request locks affected intersection signals to GREEN for 90 seconds.
+        </div>
+
+        <!-- Emergency Requests List -->
+        <h3 style="margin-bottom: 12px; font-size: 1.1rem;">Active & Historical Corridor Requests</h3>
+        <div id="emergency-requests-list">
+          <!-- Populated dynamically by emergency.js -->
+        </div>
+
+        <!-- Emergency Fleet Roster -->
+        <div class="card" style="margin-top: 24px; padding: 0; overflow: hidden;">
+          <div class="card-header" style="padding: 16px 20px; margin: 0;">
+            <h3 class="card-title"><span>🚓</span> Monitored Vehicle Fleet Status</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Vehicle ID</th>
+                  <th>Type</th>
+                  <th>Current Location</th>
+                  <th>Destination</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="emergency-vehicles-table">
+                <!-- Populated dynamically by emergency.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 6: ALERTS AND NOTIFICATIONS -->
+      <section id="section-alerts" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Alerts & Incident Notification Center</h2>
+            <p class="page-subtitle">Real-time alerts for traffic bottlenecks, sensor failures, and emergency requests</p>
+          </div>
+          <button class="btn btn-secondary" onclick="loadAlerts()">Refresh Alerts ⟳</button>
+        </div>
+
+        <!-- Filters Bar -->
+        <div class="card" style="padding: 16px; margin-bottom: 16px;">
+          <div class="input-row">
+            <div>
+              <label class="form-label">Priority</label>
+              <select id="alert-filter-priority" class="form-select" onchange="loadAlerts()">
+                <option value="ALL">All Priorities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="alert-filter-status" class="form-select" onchange="loadAlerts()">
+                <option value="ALL">All Statuses</option>
+                <option value="NEW">New (Active)</option>
+                <option value="ACKNOWLEDGED">Acknowledged</option>
+                <option value="RESOLVED">Resolved</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Alert Type</label>
+              <select id="alert-filter-type" class="form-select" onchange="loadAlerts()">
+                <option value="ALL">All Types</option>
+                <option value="SEVERE_CONGESTION">Severe Congestion</option>
+                <option value="HEAVY_CONGESTION">Heavy Congestion</option>
+                <option value="SENSOR_OFFLINE">Sensor Offline</option>
+                <option value="EMERGENCY_REQUEST">Emergency Priority</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="alerts-full-list">
+          <!-- Populated dynamically by alerts.js -->
+        </div>
+      </section>
+
+      <!-- SECTION 7: SENSOR FLEET MANAGEMENT -->
+      <section id="section-sensors" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Sensor Fleet Management</h2>
+            <p class="page-subtitle">Health diagnostics and fault simulation for road cameras, radar, and inductive loops</p>
+          </div>
+          <button class="btn btn-primary" onclick="openAddSensorModal()">+ Register New Sensor</button>
+        </div>
+
+        <div id="sensors-grid-container" class="signals-grid">
+          <!-- Populated dynamically by sensors.js -->
+        </div>
+      </section>
+
+      <!-- SECTION 8: REPORTS AND ANALYTICS -->
+      <section id="section-reports" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Traffic Reports & Historical Analytics</h2>
+            <p class="page-subtitle">Aggregated performance summaries, congestion frequency metrics, and official CSV exports</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" onclick="exportReportCSV()">📥 Export CSV</button>
+            <button class="btn btn-secondary" onclick="printReport()">🖨️ Print Report</button>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="card" style="padding: 16px; margin-bottom: 20px;">
+          <div class="input-row">
+            <div>
+              <label class="form-label">Start Date</label>
+              <input type="date" id="report-start-date" class="form-control" onchange="loadReportSummary()">
+            </div>
+            <div>
+              <label class="form-label">End Date</label>
+              <input type="date" id="report-end-date" class="form-control" onchange="loadReportSummary()">
+            </div>
+            <div>
+              <label class="form-label">Location</label>
+              <select id="report-filter-location" class="form-select" onchange="loadReportSummary()">
+                <option value="ALL">All Monitored Locations</option>
+                <option value="Anna Salai">Anna Salai</option>
+                <option value="T. Nagar">T. Nagar</option>
+                <option value="Guindy">Guindy</option>
+                <option value="Velachery">Velachery</option>
+                <option value="Tambaram">Tambaram</option>
+                <option value="OMR">OMR</option>
+                <option value="Koyambedu">Koyambedu</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Congestion</label>
+              <select id="report-filter-congestion" class="form-select" onchange="loadReportSummary()">
+                <option value="ALL">All Levels</option>
+                <option value="NORMAL">Normal</option>
+                <option value="MODERATE">Moderate</option>
+                <option value="HEAVY">Heavy</option>
+                <option value="SEVERE">Severe</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report KPI Summary Cards -->
+        <div class="kpi-grid" style="margin-bottom: 24px;">
+          <div class="kpi-card">
+            <span class="kpi-label">Records Analyzed</span>
+            <div class="kpi-value" id="rep-total-records">0</div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Total Vehicles Passed</span>
+            <div class="kpi-value" id="rep-total-vehicles">0</div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">City Average Speed</span>
+            <div class="kpi-value" id="rep-avg-speed">0 km/h</div>
+          </div>
+          <div class="kpi-card kpi-severe">
+            <span class="kpi-label">Severe Bottlenecks</span>
+            <div class="kpi-value" id="rep-severe-incidents">0</div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Active Signals</span>
+            <div class="kpi-value" id="rep-active-signals">0</div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Alerts Generated</span>
+            <div class="kpi-value" id="rep-total-alerts">0</div>
+          </div>
+        </div>
+
+        <!-- Location Breakdown Table -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+          <div class="card-header" style="padding: 16px 20px; margin: 0;">
+            <h3 class="card-title"><span>📊</span> Location-Specific Traffic Performance Metrics</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Location</th>
+                  <th>Total Volume</th>
+                  <th>Avg Queue Size</th>
+                  <th>Avg Speed</th>
+                  <th>Severe Incidents</th>
+                </tr>
+              </thead>
+              <tbody id="report-locations-table-body">
+                <!-- Populated dynamically by reports.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 9: USER MANAGEMENT (ADMIN ONLY) -->
+      <section id="section-users" class="content-section role-admin-only" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">User Accounts & Role Permissions</h2>
+            <p class="page-subtitle">Manage portal authentication, role-based access control (RBAC), and user status</p>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateUserModal()">+ Create User Account</button>
+        </div>
+
+        <div class="card" style="padding: 0; overflow: hidden;">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Full Name</th>
+                  <th>Email</th>
+                  <th>System Role</th>
+                  <th>Account Status</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <!-- Populated dynamically by users.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 10: SETTINGS AND SYSTEM HEALTH -->
+      <section id="section-settings" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">System Settings & Health Diagnostics</h2>
+            <p class="page-subtitle">Environment configurations, rule threshold calibrations, and audit log inspection</p>
+          </div>
+          <button class="btn btn-danger" onclick="handleResetDatabase()">⚠️ Reset & Reseed Database</button>
+        </div>
+
+        <!-- Health Cards Grid -->
+        <div class="kpi-grid" style="margin-bottom: 24px;">
+          <div class="card" style="padding: 16px;">
+            <span class="kpi-label">Application Status</span>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--status-normal);" id="health-status">HEALTHY</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Version: <span id="health-version">1.0.0</span></div>
+          </div>
+          <div class="card" style="padding: 16px;">
+            <span class="kpi-label">MongoDB Connection</span>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);" id="health-db-status">Connected</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Engine: <span id="health-db-type">Local / Embedded</span></div>
+          </div>
+          <div class="card" style="padding: 16px;">
+            <span class="kpi-label">Database Target</span>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);" id="health-db-name">smart_traffic</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Server Uptime: <span id="health-uptime">0s</span></div>
+          </div>
+        </div>
+
+        <!-- Congestion Threshold Configuration -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3 class="card-title"><span>📐</span> Rule-Based Congestion Threshold Calibration</h3>
+            <span class="badge badge-secondary">Rule Engine Parameters</span>
+          </div>
+          <form onsubmit="handleSaveThresholds(event)">
+            <div class="input-row">
+              <div class="form-group">
+                <label class="form-label">Normal Max Vehicles</label>
+                <input type="number" id="th-normal-count" class="form-control" value="20" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Normal Min Speed (km/h)</label>
+                <input type="number" id="th-normal-speed" class="form-control" value="40" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Moderate Max Vehicles</label>
+                <input type="number" id="th-moderate-count" class="form-control" value="39" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Moderate Min Speed (km/h)</label>
+                <input type="number" id="th-moderate-speed" class="form-control" value="25" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Heavy Max Vehicles</label>
+                <input type="number" id="th-heavy-count" class="form-control" value="59" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Heavy Min Speed (km/h)</label>
+                <input type="number" id="th-heavy-speed" class="form-control" value="15" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Severe Min Vehicles</label>
+                <input type="number" id="th-severe-count" class="form-control" value="60" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top: 8px;">Save Thresholds</button>
+          </form>
+        </div>
+
+        <!-- Audit Log Table -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+          <div class="card-header" style="padding: 16px 20px; margin: 0;">
+            <h3 class="card-title"><span>📜</span> System Security & Operational Audit Log</h3>
+            <button class="btn btn-outline btn-sm" onclick="loadAuditLogs()">Refresh Audit Trail</button>
+          </div>
+          <div class="table-responsive" style="max-height: 380px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Operator</th>
+                  <th>Action</th>
+                  <th>Resource</th>
+                  <th>Target ID</th>
+                </tr>
+              </thead>
+              <tbody id="audit-logs-table-body">
+                <!-- Populated dynamically by settings.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     MODALS
+     ========================================================================== -->
+
+<!-- Add / Edit Traffic Modal -->
+<div id="modal-traffic" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-traffic-title">Register Traffic Measurement</h3>
+      <button class="modal-close" onclick="closeTrafficModal()">&times;</button>
+    </div>
+    <form onsubmit="handleSaveTraffic(event)">
+      <div class="modal-body">
+        <input type="hidden" id="form-traffic-id">
+        <div class="form-group">
+          <label class="form-label">Junction Location</label>
+          <input type="text" id="form-traffic-location" class="form-control" placeholder="e.g. Anna Salai Junction" required>
+        </div>
+        <div class="input-row">
+          <div class="form-group">
+            <label class="form-label">Latitude</label>
+            <input type="number" step="0.0001" id="form-traffic-lat" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Longitude</label>
+            <input type="number" step="0.0001" id="form-traffic-lng" class="form-control" required>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="form-group">
+            <label class="form-label">Vehicle Count</label>
+            <input type="number" id="form-traffic-count" class="form-control" min="0" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Average Speed (km/h)</label>
+            <input type="number" id="form-traffic-speed" class="form-control" min="0" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sensor Identifier</label>
+          <input type="text" id="form-traffic-sensor" class="form-control" placeholder="e.g. SEN-ANN-01">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeTrafficModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Traffic Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Register Emergency Priority Request Modal -->
+<div id="modal-emergency" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Request Emergency Green Wave Corridor</h3>
+      <button class="modal-close" onclick="closeCreateEmergencyModal()">&times;</button>
+    </div>
+    <form onsubmit="handleCreateEmergencyRequest(event)">
+      <div class="modal-body">
+        <div class="input-row">
+          <div class="form-group">
+            <label class="form-label">Vehicle ID</label>
+            <input type="text" id="emg-vehicle-id" class="form-control" placeholder="e.g. AMB-108" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vehicle Type</label>
+            <select id="emg-vehicle-type" class="form-select">
+              <option value="AMBULANCE">Ambulance</option>
+              <option value="FIRE_ENGINE">Fire Engine</option>
+              <option value="POLICE">Police Escort</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="form-group">
+            <label class="form-label">Origin Junction</label>
+            <input type="text" id="emg-origin" class="form-control" placeholder="Anna Salai Junction" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Destination</label>
+            <input type="text" id="emg-destination" class="form-control" placeholder="Guindy Kathipara Junction" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Affected Priority Junctions (comma separated)</label>
+          <input type="text" id="emg-corridor-junctions" class="form-control" placeholder="Anna Salai Junction, T. Nagar Panagal Park, Guindy Kathipara Junction" value="Anna Salai Junction, T. Nagar Panagal Park, Guindy Kathipara Junction">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCreateEmergencyModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit Emergency Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Sensor Modal -->
+<div id="modal-sensor" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Register Telemetry Sensor</h3>
+      <button class="modal-close" onclick="closeAddSensorModal()">&times;</button>
+    </div>
+    <form onsubmit="handleCreateSensor(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Sensor Identifier</label>
+          <input type="text" id="sensor-id" class="form-control" placeholder="e.g. SEN-CHE-09" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Junction Location</label>
+          <input type="text" id="sensor-location" class="form-control" placeholder="e.g. Central Station Junction" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sensor Type</label>
+          <select id="sensor-type" class="form-select">
+            <option value="CAMERA">High-Resolution Traffic Camera</option>
+            <option value="INDUCTIVE_LOOP">Sub-Pavement Inductive Loop</option>
+            <option value="RADAR">Microwave Radar Detector</option>
+            <option value="INFRARED">Thermal Infrared Sensor</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeAddSensorModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Register Sensor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create User Modal (Admin) -->
+<div id="modal-user" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Create New Portal User Account</h3>
+      <button class="modal-close" onclick="closeCreateUserModal()">&times;</button>
+    </div>
+    <form onsubmit="handleCreateUser(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="new-user-name" class="form-control" placeholder="Officer Name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="new-user-email" class="form-control" placeholder="user@stms.gov.in" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temporary Password</label>
+          <input type="password" id="new-user-pwd" class="form-control" placeholder="Minimum 6 characters" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assigned Role</label>
+          <select id="new-user-role" class="form-select">
+            <option value="officer">Traffic Officer (Monitoring & Alerts)</option>
+            <option value="traffic_admin">Traffic Administrator (Signals & Emergency)</option>
+            <option value="admin">System Administrator (Full Authority)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- User Login & Account Switcher Modal -->
+<div id="modal-auth" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>User Login & Account Switcher</h3>
+      <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Active Profile Details -->
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 14px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <span style="font-size: 0.725rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Currently Active Session:</span>
+          <div id="modal-active-user-name" style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">Officer</div>
+          <div id="modal-active-user-email" style="font-size: 0.8rem; color: var(--text-secondary);">officer@stms.gov.in</div>
+        </div>
+        <span id="modal-active-user-role" class="badge badge-normal">Officer</span>
+      </div>
+
+      <!-- Quick 1-Click Role Switch -->
+      <div style="margin-bottom: 18px;">
+        <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em;">Quick 1-Click Role Switch:</span>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="auth.quickSwitch('admin@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-emergency">Admin</span> System Administrator (Full Authority)
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="auth.quickSwitch('trafficadmin@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-moderate">Traffic Admin</span> Traffic Administrator (Signals & Emergency)
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="auth.quickSwitch('officer@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-normal">Officer</span> Traffic Officer (Monitoring & Operations)
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Account Login Form -->
+      <div style="border-top: 1px solid var(--border-subtle); padding-top: 16px;">
+        <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em;">Or Sign In with Any Account:</span>
+        <form id="modal-login-form" onsubmit="handleModalCustomLogin(event)" style="margin-top: 10px;">
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" id="modal-login-email" class="form-control" placeholder="user@stms.gov.in" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" id="modal-login-password" class="form-control" placeholder="••••••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 4px;">Sign In to Account</button>
+        </form>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content: space-between;">
+      <a href="/login.html" class="btn btn-outline btn-sm">Full Login / Register Page &rarr;</a>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeAuthModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- JavaScript Application Modules -->
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/traffic.js"></script>
+<script src="/js/map.js"></script>
+<script src="/js/signals.js"></script>
+<script src="/js/emergency.js"></script>
+<script src="/js/alerts.js"></script>
+<script src="/js/sensors.js"></script>
+<script src="/js/reports.js"></script>
+<script src="/js/users.js"></script>
+<script src="/js/settings.js"></script>
+
+<script>
+  // Navigation & Section Switching Logic
+  const sectionTitles = {
+    dashboard: 'Control Dashboard',
+    traffic: 'Live Traffic Monitoring',
+    map: 'Interactive City Traffic Map',
+    signals: 'Traffic Signal Management',
+    emergency: 'Emergency Vehicle Priority Dispatch',
+    alerts: 'Alerts & Incident Notification Center',
+    sensors: 'Sensor Fleet Management',
+    reports: 'Traffic Reports & Historical Analytics',
+    users: 'User Accounts & Access Control',
+    settings: 'System Settings & Health Diagnostics'
+  };
+
+  function switchSection(sectionId) {
+    if (!sectionId) return;
+
+    // Hide all sections
+    document.querySelectorAll('.content-section').forEach(sec => {
+      sec.style.display = 'none';
+    });
+
+    // Update nav active button
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const isActive = item.dataset.section === sectionId;
+      item.classList.toggle('active', isActive);
+      if (isActive) {
+        item.setAttribute('aria-current', 'page');
+      } else {
+        item.removeAttribute('aria-current');
+      }
+    });
+
+    // Show target section
+    const target = document.getElementById(`section-${sectionId}`);
+    if (target) {
+      target.style.display = 'block';
+    }
+
+    // Update topbar title
+    const titleEl = document.getElementById('current-section-title');
+    if (titleEl) {
+      titleEl.textContent = sectionTitles[sectionId] || 'Traffic Center';
+    }
+
+    // Scroll viewport to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.scrollTop = 0;
+
+    // Trigger section-specific initializations safely
+    try {
+      if (sectionId === 'dashboard') initDashboard();
+      else if (sectionId === 'traffic') initTraffic();
+      else if (sectionId === 'map') initTrafficMap();
+      else if (sectionId === 'signals') initSignals();
+      else if (sectionId === 'emergency') initEmergency();
+      else if (sectionId === 'alerts') initAlerts();
+      else if (sectionId === 'sensors') initSensors();
+      else if (sectionId === 'reports') initReports();
+      else if (sectionId === 'users') initUsers();
+      else if (sectionId === 'settings') initSettings();
+    } catch (err) {
+      console.error(`Section init error for [${sectionId}]:`, err);
+    }
+
+    // Close mobile drawer if open
+    document.getElementById('app-sidebar')?.classList.remove('mobile-open');
+  }
+
+  // Expose globally
+  window.switchSection = switchSection;
+
+  // Delegated event listener on sidebar menu for click reliability
+  document.addEventListener('DOMContentLoaded', () => {
+    const menuNav = document.getElementById('sidebar-menu-nav');
+    if (menuNav) {
+      menuNav.addEventListener('click', (e) => {
+        const btn = e.target.closest('.nav-item');
+        if (btn && btn.dataset.section) {
+          e.preventDefault();
+          switchSection(btn.dataset.section);
+        }
+      });
+    }
+  });
+
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    if (window.innerWidth <= 768) {
+      sidebar.classList.toggle('mobile-open');
+    } else {
+      sidebar.classList.toggle('collapsed');
+    }
+  }
+
+  // Simulation Controls in Topbar
+  let isSimRunning = true;
+
+  async function handleSimulationStep() {
+    try {
+      await api.post('/simulation/step');
+      showToast('Executed simulation cycle across all junctions.', 'info', 2000);
+      loadDashboardData();
+    } catch (err) {
+      showToast(err.message || 'Simulation step failed', 'error');
+    }
+  }
+
+  async function handleToggleSimulation() {
+    try {
+      const res = await api.post('/simulation/toggle', { enabled: !isSimRunning });
+      isSimRunning = res.isRunning;
+
+      const btn = document.getElementById('btn-toggle-sim');
+      const ind = document.getElementById('sim-indicator');
+      const label = document.getElementById('sim-status-label');
+
+      if (isSimRunning) {
+        btn.textContent = 'Pause ⏸';
+        ind.className = 'sim-status-indicator';
+        label.textContent = 'SIM RUNNING';
+        showToast('Traffic simulation resumed.', 'success', 2000);
+      } else {
+        btn.textContent = 'Resume ▶';
+        ind.className = 'sim-status-indicator paused';
+        label.textContent = 'SIM PAUSED';
+        showToast('Traffic simulation paused.', 'warning', 2000);
+      }
+    } catch (err) {
+      showToast(err.message || 'Toggle failed', 'error');
+    }
+  }
+
+  // Account Switcher & Login Modal Controllers
+  function openAuthModal() {
+    const user = auth.getUser() || { name: 'Officer', email: 'officer@stms.gov.in', role: 'officer' };
+    const nameEl = document.getElementById('modal-active-user-name');
+    const emailEl = document.getElementById('modal-active-user-email');
+    const roleEl = document.getElementById('modal-active-user-role');
+
+    if (nameEl) nameEl.textContent = user.name;
+    if (emailEl) emailEl.textContent = user.email;
+    if (roleEl) {
+      roleEl.textContent = user.role.toUpperCase();
+      roleEl.className = `badge badge-${user.role === 'admin' ? 'emergency' : user.role === 'traffic_admin' ? 'moderate' : 'normal'}`;
+    }
+
+    document.getElementById('modal-auth').classList.add('active');
+  }
+
+  function closeAuthModal() {
+    document.getElementById('modal-auth').classList.remove('active');
+  }
+
+  async function handleModalCustomLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('modal-login-email').value.trim();
+    const password = document.getElementById('modal-login-password').value;
+
+    try {
+      showToast(`Signing in as ${email}...`, 'info', 2000);
+      await auth.login(email, password, true);
+      showToast('Logged in successfully!', 'success', 2000);
+      closeAuthModal();
+      setTimeout(() => {
+        window.location.reload();
+      }, 400);
+    } catch (err) {
+      showToast(err.message || 'Login failed', 'error');
+    }
+  }
+
+  // Application Bootstrapping
+  window.addEventListener('DOMContentLoaded', () => {
+    // 1. Session verification & RBAC check
+    auth.checkSession();
+
+    // 2. Load primary dashboard
+    switchSection('dashboard');
+  });
+</script>
+
+</body>
+</html>

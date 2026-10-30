@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STMS Portal Login & Registration - Smart Traffic Management System</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <style>
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.15), transparent 70%), var(--bg-primary);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 480px;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      box-shadow: var(--shadow-lg), 0 0 40px rgba(37, 99, 235, 0.15);
+    }
+    .login-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .auth-tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 20px;
+    }
+    .auth-tab-btn {
+      flex: 1;
+      padding: 10px 14px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-align: center;
+    }
+    .auth-tab-btn.active {
+      color: var(--text-accent);
+      border-bottom-color: var(--primary);
+      background: rgba(59, 130, 246, 0.08);
+    }
+    .auth-tab-btn:hover:not(.active) {
+      color: var(--text-primary);
+    }
+    .demo-presets-box {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .demo-btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .password-wrapper {
+      position: relative;
+    }
+    .toggle-pwd-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-icon">🚦</div>
+        <div>
+          <h1 class="brand-title" style="font-size: 1.25rem;">STMS CONTROL CENTER</h1>
+          <span class="brand-subtitle">Smart Traffic Management System</span>
+        </div>
+      </div>
+
+      <div class="simulation-watermark" style="margin-bottom: 16px; width: 100%; justify-content: center;">
+        🛡 College OOASE Demonstration Environment
+      </div>
+
+      <!-- Navigation Tabs: Sign In vs Register -->
+      <div class="auth-tab-bar">
+        <button type="button" id="tab-login" class="auth-tab-btn active" onclick="switchAuthTab('login')">
+          Sign In
+        </button>
+        <button type="button" id="tab-register" class="auth-tab-btn" onclick="switchAuthTab('register')">
+          Register New Account
+        </button>
+      </div>
+
+      <div id="auth-error" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--status-severe); color: #fca5a5; padding: 10px 14px; border-radius: var(--radius-md); font-size: 0.825rem; margin-bottom: 16px;"></div>
+
+      <!-- FORM 1: LOGIN -->
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="login-email">Portal Email Address</label>
+          <input type="email" id="login-email" name="email" class="form-control" value="admin@stms.gov.in" placeholder="name@stms.gov.in" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="login-password" name="password" class="form-control" value="Password123!" placeholder="Enter password (default: Password123!)" required autocomplete="current-password">
+            <button type="button" id="btn-toggle-login-pwd" class="toggle-pwd-btn">Show</button>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 0.8rem;">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary);">
+            <input type="checkbox" id="remember-me" checked> Remember session
+          </label>
+          <span style="color: var(--text-muted); font-family: monospace;">Demo Pwd: Password123!</span>
+        </div>
+
+        <button type="submit" id="btn-login-submit" class="btn btn-primary" style="width: 100%; padding: 11px;">
+          Authenticate & Access Control
+        </button>
+      </form>
+
+      <!-- FORM 2: REGISTER -->
+      <form id="register-form" style="display: none;">
+        <div class="form-group">
+          <label class="form-label" for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" class="form-control" placeholder="e.g. Officer Raman" required autocomplete="name">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reg-email">Portal Email Address</label>
+          <input type="email" id="reg-email" class="form-control" placeholder="e.g. raman@stms.gov.in" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reg-password">Create Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="reg-password" class="form-control" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password">
+            <button type="button" id="btn-toggle-reg-pwd" class="toggle-pwd-btn">Show</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reg-role">System Role Permission</label>
+          <select id="reg-role" class="form-select">
+            <option value="officer">Traffic Officer (Monitoring & Alerts)</option>
+            <option value="traffic_admin">Traffic Administrator (Signals & Emergency)</option>
+            <option value="admin">System Administrator (Full Authority)</option>
+          </select>
+        </div>
+
+        <button type="submit" id="btn-reg-submit" class="btn btn-primary" style="width: 100%; padding: 11px; margin-top: 6px;">
+          Create Account & Log In
+        </button>
+      </form>
+
+      <!-- Fast Demo Credentials Preset Selection -->
+      <div class="demo-presets-box">
+        <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em;">
+          One-Click Demo Account Autofill:
+        </span>
+        <div class="demo-btn-group">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="quickFill('admin@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-emergency">Admin</span> System Administrator
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="quickFill('trafficadmin@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-moderate">Traffic Admin</span> Traffic Administrator
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="quickFill('officer@stms.gov.in', 'Password123!')" style="justify-content: flex-start;">
+            <span class="badge badge-normal">Officer</span> Traffic Officer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+    // Tab switching between Login and Register
+    function switchAuthTab(tab) {
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('auth-error').style.display = 'none';
+    }
+
+    // Quick autofill helper
+    function quickFill(email, pwd) {
+      switchAuthTab('login');
+      const emailEl = document.getElementById('login-email') || document.querySelector('input[name="email"]');
+      const pwdEl = document.getElementById('login-password') || document.querySelector('input[name="password"]');
+      if (emailEl) {
+        emailEl.value = email;
+        emailEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (pwdEl) {
+        pwdEl.value = pwd;
+        pwdEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      showToast(`Autofilled demo credentials for ${email}`, 'info', 2000);
+    }
+
+    // Toggle password visibility helpers
+    function setupPasswordToggle(inputId, toggleBtnId) {
+      const input = document.getElementById(inputId);
+      const btn = document.getElementById(toggleBtnId);
+      if (!input || !btn) return;
+      btn.addEventListener('click', () => {
+        const isPwd = input.type === 'password';
+        input.type = isPwd ? 'text' : 'password';
+        btn.textContent = isPwd ? 'Hide' : 'Show';
+      });
+    }
+    setupPasswordToggle('login-password', 'btn-toggle-login-pwd');
+    setupPasswordToggle('reg-password', 'btn-toggle-reg-pwd');
+
+    // Handle Login Form Submission
+    const loginForm = document.getElementById('login-form');
+    const errBox = document.getElementById('auth-error');
+    const loginSubmitBtn = document.getElementById('btn-login-submit');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errBox.style.display = 'none';
+
+      const emailEl = document.getElementById('login-email') || document.querySelector('input[name="email"]');
+      const pwdEl = document.getElementById('login-password') || document.querySelector('input[name="password"]');
+      const email = (emailEl ? emailEl.value : '').trim();
+      const password = (pwdEl ? pwdEl.value : '').trim();
+
+      if (!email || !password) {
+        errBox.textContent = 'Please provide both email and password (e.g. Password123!).';
+        errBox.style.display = 'block';
+        if (!email && emailEl) emailEl.focus();
+        else if (!password && pwdEl) pwdEl.focus();
+        return;
+      }
+
+      loginSubmitBtn.disabled = true;
+      loginSubmitBtn.innerHTML = 'Verifying credentials...';
+      const remember = document.getElementById('remember-me').checked;
+
+      try {
+        await auth.login(email, password, remember);
+        showToast('Login authorized. Redirecting...', 'success', 2000);
+        setTimeout(() => {
+          window.location.href = '/index.html';
+        }, 400);
+      } catch (err) {
+        errBox.textContent = err.message || 'Authentication failed. Please verify credentials.';
+        errBox.style.display = 'block';
+        showToast(err.message || 'Login failed', 'error');
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.innerHTML = 'Authenticate & Access Control';
+      }
+    });
+
+    // Handle Register Form Submission
+    const regForm = document.getElementById('register-form');
+    const regSubmitBtn = document.getElementById('btn-reg-submit');
+
+    regForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errBox.style.display = 'none';
+      regSubmitBtn.disabled = true;
+      regSubmitBtn.innerHTML = 'Creating account...';
+
+      const name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const role = document.getElementById('reg-role').value;
+
+      try {
+        await auth.register(name, email, password, role, true);
+        showToast(`Welcome, ${name}! Logged in as ${role}.`, 'success', 2500);
+        setTimeout(() => {
+          window.location.href = '/index.html';
+        }, 500);
+      } catch (err) {
+        errBox.textContent = err.message || 'Registration failed.';
+        errBox.style.display = 'block';
+        showToast(err.message || 'Registration failed', 'error');
+        regSubmitBtn.disabled = false;
+        regSubmitBtn.innerHTML = 'Create Account & Log In';
+      }
+    });
+
+    // Check if session already active
+    if (auth.isAuthenticated()) {
+      window.location.href = '/index.html';
+    }
+  </script>
+</body>
+</html>
