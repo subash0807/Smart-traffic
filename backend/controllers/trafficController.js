@@ -2,6 +2,8 @@ const Traffic = require('../models/Traffic');
 const congestionService = require('../services/congestionService');
 const alertService = require('../services/alertService');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get paginated traffic records with filters
@@ -20,6 +22,28 @@ async function getTrafficRecords(req, res, next) {
       sortOrder = 'desc'
     } = req.query;
 
+    const take = parseInt(limit, 10);
+
+    if (!db.getDbStatus().isConnected) {
+      let records = mockStore.getTrafficRecords(take);
+      if (location) {
+        records = records.filter(r => r.location.toLowerCase().includes(location.toLowerCase()));
+      }
+      if (congestion && congestion !== 'ALL') {
+        records = records.filter(r => r.congestion === congestion);
+      }
+      return res.status(200).json({
+        success: true,
+        data: records,
+        pagination: {
+          total: records.length,
+          page: 1,
+          pages: 1,
+          limit: take
+        }
+      });
+    }
+
     const query = {};
 
     if (location) {
@@ -37,8 +61,7 @@ async function getTrafficRecords(req, res, next) {
     }
 
     const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const take = parseInt(limit, 10);
+    const skip = (parseInt(page, 10) - 1) * take;
 
     const [records, total] = await Promise.all([
       Traffic.find(query).sort(sort).skip(skip).limit(take),
@@ -66,6 +89,15 @@ async function getTrafficRecords(req, res, next) {
  */
 async function getTrafficById(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      const records = mockStore.getTrafficRecords(50);
+      const record = records.find(r => r.id === req.params.id || r._id === req.params.id);
+      if (!record) {
+        return res.status(404).json({ success: false, message: 'Traffic record not found.' });
+      }
+      return res.status(200).json({ success: true, data: record });
+    }
+
     const record = await Traffic.findById(req.params.id);
     if (!record) {
       return res.status(404).json({
@@ -90,8 +122,25 @@ async function getTrafficById(req, res, next) {
 async function createTrafficRecord(req, res, next) {
   try {
     const { location, latitude, longitude, vehicleCount, avgSpeed, sensorId, dataSource } = req.body;
-
     const congestionLevel = congestionService.classifyCongestion(vehicleCount, avgSpeed);
+
+    if (!db.getDbStatus().isConnected) {
+      const record = mockStore.addTrafficRecord({
+        location,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        vehicleCount: Number(vehicleCount),
+        avgSpeed: Number(avgSpeed),
+        congestion: congestionLevel,
+        sensorId: sensorId || 'SEN-MANUAL',
+        dataSource: dataSource || 'MANUAL'
+      });
+      return res.status(201).json({
+        success: true,
+        message: 'Traffic record created successfully (Demo Mode).',
+        data: record
+      });
+    }
 
     const newRecord = new Traffic({
       location,
@@ -100,36 +149,23 @@ async function createTrafficRecord(req, res, next) {
       vehicleCount,
       avgSpeed,
       congestion: congestionLevel,
-      sensorId: sensorId || 'SEN-MANUAL',
+      sensorId: sensorId || 'MANUAL-INPUT',
       dataSource: dataSource || 'MANUAL',
       timestamp: new Date()
     });
 
     await newRecord.save();
 
-    // Congestion event processing
     await congestionService.recordCongestionEvent(location, congestionLevel, vehicleCount, avgSpeed);
 
-    // Trigger alert if congested
     if (congestionLevel === 'SEVERE' || congestionLevel === 'HEAVY') {
       await alertService.triggerAlert({
-        type: `${congestionLevel}_CONGESTION`,
-        message: `${congestionLevel} congestion detected at ${location}: ${vehicleCount} vehicles, avg speed ${avgSpeed} km/h.`,
+        type: 'CONGESTION',
+        message: `${congestionLevel} congestion observed at ${location}: ${vehicleCount} vehicles, avg speed ${avgSpeed} km/h.`,
         location,
         priority: congestionLevel === 'SEVERE' ? 'CRITICAL' : 'HIGH'
       });
     }
-
-    // Audit log
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'ANONYMOUS',
-      userName: req.user ? req.user.name : 'Traffic Operator',
-      action: 'TRAFFIC_RECORD_CREATED',
-      resourceType: 'Traffic',
-      resourceId: newRecord._id.toString(),
-      newValue: newRecord.toObject(),
-      ipAddress: req.ip
-    });
 
     res.status(201).json({
       success: true,
@@ -147,40 +183,30 @@ async function createTrafficRecord(req, res, next) {
  */
 async function updateTrafficRecord(req, res, next) {
   try {
-    const record = await Traffic.findById(req.params.id);
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: 'Traffic record not found.'
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        message: 'Traffic record updated (Demo Mode).'
       });
     }
 
-    const previousValue = record.toObject();
+    const record = await Traffic.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Traffic record not found.' });
+    }
 
-    if (req.body.location) record.location = req.body.location;
-    if (req.body.latitude !== undefined) record.latitude = req.body.latitude;
-    if (req.body.longitude !== undefined) record.longitude = req.body.longitude;
-    if (req.body.vehicleCount !== undefined) record.vehicleCount = req.body.vehicleCount;
-    if (req.body.avgSpeed !== undefined) record.avgSpeed = req.body.avgSpeed;
-    if (req.body.sensorId) record.sensorId = req.body.sensorId;
+    const previousValue = record.toObject();
+    const { location, latitude, longitude, vehicleCount, avgSpeed } = req.body;
+
+    if (location) record.location = location;
+    if (latitude) record.latitude = latitude;
+    if (longitude) record.longitude = longitude;
+    if (vehicleCount !== undefined) record.vehicleCount = vehicleCount;
+    if (avgSpeed !== undefined) record.avgSpeed = avgSpeed;
 
     record.congestion = congestionService.classifyCongestion(record.vehicleCount, record.avgSpeed);
     record.timestamp = new Date();
-
     await record.save();
-
-    await congestionService.recordCongestionEvent(record.location, record.congestion, record.vehicleCount, record.avgSpeed);
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'System Operator',
-      action: 'TRAFFIC_RECORD_UPDATED',
-      resourceType: 'Traffic',
-      resourceId: record._id.toString(),
-      previousValue,
-      newValue: record.toObject(),
-      ipAddress: req.ip
-    });
 
     res.status(200).json({
       success: true,
@@ -198,23 +224,17 @@ async function updateTrafficRecord(req, res, next) {
  */
 async function deleteTrafficRecord(req, res, next) {
   try {
-    const record = await Traffic.findByIdAndDelete(req.params.id);
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: 'Traffic record not found.'
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        message: 'Traffic record deleted (Demo Mode).'
       });
     }
 
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'System Operator',
-      action: 'TRAFFIC_RECORD_DELETED',
-      resourceType: 'Traffic',
-      resourceId: req.params.id,
-      previousValue: record.toObject(),
-      ipAddress: req.ip
-    });
+    const record = await Traffic.findByIdAndDelete(req.params.id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Traffic record not found.' });
+    }
 
     res.status(200).json({
       success: true,
@@ -231,6 +251,13 @@ async function deleteTrafficRecord(req, res, next) {
  */
 async function getLatestJunctionTraffic(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        data: mockStore.getLatestJunctions()
+      });
+    }
+
     const junctions = await Traffic.aggregate([
       { $sort: { timestamp: -1 } },
       {

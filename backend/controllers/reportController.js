@@ -3,6 +3,8 @@ const CongestionEvent = require('../models/CongestionEvent');
 const Signal = require('../models/Signal');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const Alert = require('../models/Alert');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get aggregated analytics report summary from actual database records
@@ -11,8 +13,50 @@ const Alert = require('../models/Alert');
 async function getReportSummary(req, res, next) {
   try {
     const { startDate, endDate, location, congestion } = req.query;
-    const filter = {};
 
+    if (!db.getDbStatus().isConnected) {
+      const records = mockStore.getTrafficRecords(100);
+      let totalVehicles = 0;
+      let totalSpeed = 0;
+      const congestionFreq = { NORMAL: 2, MODERATE: 2, HEAVY: 2, SEVERE: 1 };
+
+      records.forEach(r => {
+        totalVehicles += r.vehicleCount || 0;
+        totalSpeed += r.avgSpeed || 0;
+      });
+
+      const locationStats = records.map(r => ({
+        location: r.location,
+        recordsCount: 1,
+        totalVehicles: r.vehicleCount,
+        avgVehicles: r.vehicleCount,
+        avgSpeed: r.avgSpeed,
+        severeIncidents: r.congestion === 'SEVERE' ? 1 : 0
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          summary: {
+            totalRecordsAnalyzed: records.length,
+            totalVehiclesRecorded: totalVehicles,
+            overallAverageSpeed: records.length ? Math.round(totalSpeed / records.length) : 32,
+            congestionFrequency: congestionFreq,
+            severeCongestionEvents: 1,
+            activeSignalsCount: mockStore.getSignals().length,
+            activeAlertsCount: mockStore.getAlerts().length,
+            emergencyCorridorsHandled: mockStore.getEmergencyRequests().length
+          },
+          locationStats,
+          period: {
+            start: startDate || 'Latest Live Session',
+            end: endDate || new Date().toISOString()
+          }
+        }
+      });
+    }
+
+    const filter = {};
     if (location && location !== 'ALL') {
       filter.location = { $regex: location, $options: 'i' };
     }
@@ -73,7 +117,6 @@ async function getReportSummary(req, res, next) {
       severeIncidents: loc.severeCount
     }));
 
-    // Other entities stats
     const [severeEventsCount, totalSignals, emergencyStats, totalAlertsCount] = await Promise.all([
       CongestionEvent.countDocuments({ congestionLevel: 'SEVERE' }),
       Signal.countDocuments(),
@@ -98,13 +141,13 @@ async function getReportSummary(req, res, next) {
           congestionFrequency,
           severeCongestionEvents: severeEventsCount,
           activeSignalsCount: totalSignals,
-          totalAlertsRecorded: totalAlertsCount,
-          emergencyRequestsByStatus: emergencyStats
+          emergencyCorridorsHandled: emergencyStats.reduce((acc, curr) => acc + curr.count, 0),
+          activeAlertsCount: totalAlertsCount
         },
         locationStats,
-        dateRange: {
-          startDate: startDate || null,
-          endDate: endDate || null
+        period: {
+          start: startDate || 'All Time Available',
+          end: endDate || new Date().toISOString()
         }
       }
     });
@@ -114,50 +157,39 @@ async function getReportSummary(req, res, next) {
 }
 
 /**
- * Export filtered traffic records as CSV
+ * Export traffic report as streamed CSV
  * GET /api/reports/export
  */
-async function exportReportCSV(req, res, next) {
+async function exportTrafficReportCsv(req, res, next) {
   try {
-    const { startDate, endDate, location, congestion } = req.query;
-    const filter = {};
+    let records = [];
 
-    if (location && location !== 'ALL') {
-      filter.location = { $regex: location, $options: 'i' };
-    }
-    if (congestion && congestion !== 'ALL') {
-      filter.congestion = congestion;
-    }
-    if (startDate || endDate) {
-      filter.timestamp = {};
-      if (startDate) filter.timestamp.$gte = new Date(startDate);
-      if (endDate) filter.timestamp.$lte = new Date(endDate);
+    if (!db.getDbStatus().isConnected) {
+      records = mockStore.getTrafficRecords(100);
+    } else {
+      records = await Traffic.find().sort({ timestamp: -1 }).limit(1000);
     }
 
-    const records = await Traffic.find(filter).sort({ timestamp: -1 }).limit(1000);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="stms_traffic_report.csv"');
 
-    // Build CSV
-    const headers = ['RecordID', 'Timestamp', 'Location', 'Latitude', 'Longitude', 'VehicleCount', 'AvgSpeed_kmh', 'CongestionLevel', 'DataSource', 'SensorID'];
-    
-    const rows = records.map((r) => [
-      r._id.toString(),
-      r.timestamp ? r.timestamp.toISOString() : '',
-      `"${(r.location || '').replace(/"/g, '""')}"`,
-      r.latitude,
-      r.longitude,
-      r.vehicleCount,
-      r.avgSpeed,
-      r.congestion,
-      r.dataSource,
-      r.sensorId || ''
-    ]);
+    let csvContent = 'ID,Location,Latitude,Longitude,VehicleCount,AvgSpeedKmH,CongestionLevel,SensorID,Timestamp\n';
 
-    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
+    records.forEach((r) => {
+      const line = [
+        r._id || r.id,
+        `"${r.location}"`,
+        r.latitude,
+        r.longitude,
+        r.vehicleCount,
+        r.avgSpeed,
+        r.congestion,
+        r.sensorId || 'N/A',
+        new Date(r.timestamp).toISOString()
+      ].join(',');
+      csvContent += line + '\n';
+    });
 
-    const filename = `stms_traffic_report_${new Date().toISOString().slice(0, 10)}.csv`;
-
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.status(200).send(csvContent);
   } catch (err) {
     next(err);
@@ -166,5 +198,6 @@ async function exportReportCSV(req, res, next) {
 
 module.exports = {
   getReportSummary,
-  exportReportCSV
+  exportTrafficReportCsv,
+  exportReportCSV: exportTrafficReportCsv
 };

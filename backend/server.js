@@ -27,7 +27,7 @@ const systemRoutes = require('./routes/systemRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security Headers (Configured to permit OpenStreetMap tiles, Chart.js CDN, Google Fonts)
+// Security Headers (Permit OpenStreetMap tiles, Chart.js CDN, Google Fonts, and Cloud APIs)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -48,7 +48,7 @@ app.use(
         ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
         imgSrc: ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org', 'https://unpkg.com'],
-        connectSrc: ["'self'", 'https://*.tile.openstreetmap.org', 'http://localhost:*']
+        connectSrc: ["'self'", 'https://*.tile.openstreetmap.org', 'http://localhost:*', 'https://*']
       }
     },
     crossOriginEmbedderPolicy: false
@@ -93,37 +93,60 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 let serverInstance = null;
+let isInitialized = false;
 
 async function startServer() {
+  if (isInitialized && process.env.VERCEL) {
+    return app;
+  }
+
   try {
     await db.connectDB();
 
-    // Auto-seed if database is empty for seamless out-of-the-box evaluation
-    const userCount = await User.countDocuments();
-    if (userCount === 0) {
-      logger.info('Database is uninitialized. Running initial automatic seed...');
-      await seedModule.seedAllData();
+    // Auto-seed if real database is connected and uninitialized
+    if (db.getDbStatus().isConnected) {
+      try {
+        const userCount = await User.countDocuments();
+        if (userCount === 0) {
+          logger.info('Connected database has 0 users. Performing initial auto-seed...');
+          await seedModule.seedAllData();
+        }
+      } catch (seedErr) {
+        logger.warn(`Auto-seed check deferred: ${seedErr.message}`);
+      }
     }
 
-    // Start background simulation if enabled
+    isInitialized = true;
+
+    // In Vercel serverless environment, do not start background intervals or listen
+    if (process.env.VERCEL) {
+      return app;
+    }
+
+    // Start background simulation ticker if enabled
     if (process.env.AUTO_SIMULATION_ENABLED !== 'false') {
       const interval = parseInt(process.env.SIMULATION_INTERVAL_MS, 10) || 12000;
       simulationService.startSimulation(interval);
     }
 
-    serverInstance = app.listen(PORT, () => {
-      logger.success(`========================================================`);
-      logger.success(`  Smart Traffic Management System (STMS) Server Running `);
-      logger.success(`  Access Website: http://localhost:${PORT}             `);
-      logger.success(`  API Base:       http://localhost:${PORT}/api         `);
-      logger.success(`  API Health:     http://localhost:${PORT}/api/health  `);
-      logger.success(`========================================================`);
-    });
+    if (!serverInstance) {
+      serverInstance = app.listen(PORT, () => {
+        logger.success(`========================================================`);
+        logger.success(`  Smart Traffic Management System (STMS) Server Running `);
+        logger.success(`  Access Website: http://localhost:${PORT}             `);
+        logger.success(`  API Base:       http://localhost:${PORT}/api         `);
+        logger.success(`  API Health:     http://localhost:${PORT}/api/health  `);
+        logger.success(`========================================================`);
+      });
+    }
 
     return serverInstance;
   } catch (err) {
-    logger.error(`Critical Server Startup Failure: ${err.message}`);
-    process.exit(1);
+    logger.error(`Server Startup: ${err.message}`);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
+    return app;
   }
 }
 

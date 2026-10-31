@@ -2,6 +2,7 @@ const db = require('../config/db');
 const AuditLog = require('../models/AuditLog');
 const simulationService = require('../services/simulationService');
 const seedModule = require('../scripts/seed');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Health Check Endpoint
@@ -14,10 +15,10 @@ function getHealth(req, res) {
     success: true,
     system: 'Smart Traffic Management System (STMS)',
     version: '1.0.0',
-    status: dbStatus.isConnected ? 'HEALTHY' : 'DEGRADED',
+    status: dbStatus.isConnected ? 'HEALTHY' : 'DEMO_STANDALONE',
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || (process.env.VERCEL ? 'production' : 'development'),
     database: {
       status: dbStatus.state,
       connected: dbStatus.isConnected,
@@ -75,6 +76,21 @@ function toggleSimulation(req, res) {
 async function getAuditLogs(req, res, next) {
   try {
     const { limit = 50 } = req.query;
+
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        data: [
+          {
+            userName: 'System Administrator',
+            action: 'DEMO_MODE_ACTIVE',
+            resourceType: 'System',
+            timestamp: new Date()
+          }
+        ]
+      });
+    }
+
     const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(parseInt(limit, 10));
 
     res.status(200).json({
@@ -92,7 +108,23 @@ async function getAuditLogs(req, res, next) {
  */
 async function seedDatabaseEndpoint(req, res, next) {
   try {
-    const summary = await seedModule.seedAllData();
+    let summary = {};
+    if (db.getDbStatus().isConnected) {
+      summary = await seedModule.seedAllData();
+    } else {
+      mockStore.reset();
+      summary = {
+        users: 3,
+        junctions: 7,
+        trafficRecords: 7,
+        signals: 7,
+        sensors: 7,
+        alerts: 2,
+        emergencyRequests: 1,
+        mode: 'STANDALONE_DEMO'
+      };
+    }
+
     res.status(200).json({
       success: true,
       message: 'Database seeded successfully with clean demonstration data.',

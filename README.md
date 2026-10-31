@@ -27,8 +27,8 @@ Developed as a college Object-Oriented Analysis & Software Engineering (OOASE) d
 - Real-time records tracking: Location, GPS Coordinates, Vehicle Count, Average Speed (km/h), Sensor ID, and Timestamps.
 - Rule-based congestion classification:
   - **NORMAL**: `< 20` vehicles and `> 40 km/h` average speed.
-  - **MODERATE**: `20–39` vehicles or `25–40 km/h` average speed.
-  - **HEAVY**: `40–59` vehicles or `15–25 km/h` average speed.
+  - **MODERATE**: `20-39` vehicles or `25-40 km/h` average speed.
+  - **HEAVY**: `40-59` vehicles or `15-25 km/h` average speed.
   - **SEVERE**: `≥ 60` vehicles or `< 15 km/h` average speed (or stopped traffic).
 - Search, filter by severity, sorting, pagination, manual entry modals, and audit logging.
 
@@ -70,10 +70,12 @@ Developed as a college Object-Oriented Analysis & Software Engineering (OOASE) d
 - Direct CSV report streaming export (`/api/reports/export`).
 - Dedicated print-friendly layout.
 
-### 9. Role-Based Access Control (RBAC)
+### 9. Role-Based Access Control (RBAC) & Self-Healing Auth
 - **System Administrator** (`admin`): Full administrative authority, user account creation/deletion, system settings, and audit logs.
 - **Traffic Administrator** (`traffic_admin`): Signal management, emergency approvals, sensor fleet, and alert resolution.
 - **Traffic Officer** (`officer`): Traffic monitoring, permitted manual simulation commands, and alert acknowledgments.
+- **Self-Healing On-Demand Seeding**: Automatically initializes demo accounts if the connected database has 0 users, eliminating "User not found" errors on new deployments.
+- **Standalone In-Memory Fallback**: Runs out-of-the-box even if MongoDB Atlas has not yet been linked, so deployed preview sites work immediately!
 
 ---
 
@@ -81,8 +83,10 @@ Developed as a college Object-Oriented Analysis & Software Engineering (OOASE) d
 
 - **Frontend**: HTML5, Vanilla CSS3 (Custom design system), Vanilla JavaScript (Modular ES6), Chart.js 4.4, Leaflet.js 1.9 with OpenStreetMap.
 - **Backend**: Node.js, Express.js REST API, CORS, Helmet (Security headers), Express-Rate-Limit.
+- **Serverless Integration**: Vercel `@vercel/node` Serverless Function adapter (`api/index.js` + `vercel.json`).
+- **PaaS Deployment**: Render / Railway / Heroku compatible via `Procfile`.
 - **Security**: Bcrypt password hashing, signed JSON Web Tokens (JWT).
-- **Database**: MongoDB with Mongoose ODM (with automatic fallback to embedded in-memory MongoDB for seamless out-of-the-box demonstration).
+- **Database**: MongoDB with Mongoose ODM (with automatic fallback to embedded in-memory data store for seamless demonstration).
 - **Testing**: Node.js native test runner (`node:test`, `node:assert/strict`).
 
 ---
@@ -91,12 +95,14 @@ Developed as a college Object-Oriented Analysis & Software Engineering (OOASE) d
 
 ```
 smart-traffic/
+├── api/
+│   └── index.js                  # Vercel Serverless Function entry point
 ├── backend/
 │   ├── config/
-│   │   └── db.js                 # Database connection with MongoMemoryServer fallback
+│   │   └── db.js                 # Database connection with serverless caching & fallback
 │   ├── controllers/              # Business logic controllers
 │   │   ├── alertController.js
-│   │   ├── authController.js
+│   │   ├── authController.js     # Self-healing login & RBAC registration
 │   │   ├── congestionController.js
 │   │   ├── emergencyController.js
 │   │   ├── reportController.js
@@ -111,17 +117,17 @@ smart-traffic/
 │   ├── routes/                   # Express REST route mounts
 │   ├── scripts/
 │   │   └── seed.js               # Demonstration database seed script
-│   ├── services/                 # Congestion analysis, simulation ticker, audit, alerts
+│   ├── services/                 # Congestion analysis, simulation ticker, mock store
+│   │   └── mockStoreService.js   # Zero-setup in-memory store for serverless previews
 │   ├── tests/                    # Integration and unit test suites
 │   ├── utils/
 │   │   └── logger.js             # Formatted terminal logger
 │   ├── .env.example
 │   ├── .env
-│   ├── package.json
 │   └── server.js                 # Express application entry point
 ├── frontend/
 │   ├── index.html                # Main SPA dashboard shell
-│   ├── login.html                # High-tech portal login
+│   ├── login.html                # High-tech portal login with One-Click Autofill
 │   ├── css/
 │   │   ├── style.css             # Theme design system & components
 │   │   ├── dashboard.css         # Cards, charts, signal lights, map styling
@@ -140,174 +146,121 @@ smart-traffic/
 │       ├── users.js              # User management (Admin)
 │       └── settings.js           # Thresholds & health diagnostics
 ├── package.json                  # Root runner configuration
+├── Procfile                      # Render / Railway startup process
+├── vercel.json                   # Vercel serverless routing & static rewrites
 ├── README.md
 └── .gitignore
 ```
 
 ---
 
-## 🚀 Installation & Execution Guide
+## 🚀 Local Execution Guide
 
 ### Prerequisites
 - **Node.js**: Version 18 or higher (Verified on Node.js v24).
 - **npm**: Version 9 or higher.
-- **VS Code**: Recommended IDE.
-- **MongoDB**: Local MongoDB or MongoDB Atlas (Optional: An embedded in-memory MongoDB will launch automatically if no local database is running!).
 
----
-
-### Step 1: Open the Project in VS Code
-1. Launch **Visual Studio Code**.
-2. Go to **File &rarr; Open Folder...** and select `c:\Smart traffic`.
-3. Open the Integrated Terminal in VS Code:
-   - Shortcut: ``Ctrl + ` `` (Backtick)
-   - Or click **Terminal &rarr; New Terminal** from the top menu.
-
----
-
-### Step 2: Verify Node.js and npm
-In the VS Code terminal, execute:
-```powershell
-node -v
-npm -v
-```
-Ensure version numbers are displayed without errors.
-
----
-
-### Step 3: Install Dependencies
-In the VS Code integrated terminal (inside the project root `c:\Smart traffic`):
+### Step 1: Install Dependencies
+In the project root directory (`c:\Smart traffic`):
 ```powershell
 npm install
 ```
 
----
-
-### Step 4: Configure Environment Variables
-A default `.env` file is already configured in `backend/.env`. You may review or modify it:
-```ini
-NODE_ENV=development
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/smart_traffic
-USE_IN_MEMORY_DB=auto
-JWT_SECRET=stms_super_secure_jwt_secret_key_college_project_2026!
-SIMULATION_INTERVAL_MS=10000
-AUTO_SIMULATION_ENABLED=true
-```
-
-> [!TIP]
-> If you have a local MongoDB running, it will automatically connect to `mongodb://localhost:27017/smart_traffic`. If not, `USE_IN_MEMORY_DB=auto` will automatically start an embedded in-memory MongoDB database so the project works immediately!
-
----
-
-### Step 5: Seed Demonstration Data
-To seed realistic Chennai junction records, traffic signals, sensors, and demo user accounts:
-
-In the terminal:
-```powershell
-npm run seed
-```
-
----
-
-### Step 6: Start the Application Server
-Run the development server:
+### Step 2: Start the Application
+Run the server:
 ```powershell
 npm start
 ```
-*(Or use `npm run dev` for auto-reloading with nodemon).*
+*(Or `npm run dev` for auto-reloading with nodemon).*
 
-The terminal will display:
-```
-========================================================
-  Smart Traffic Management System (STMS) Server Running 
-  Access Website: http://localhost:5000             
-  API Base:       http://localhost:5000/api         
-  API Health:     http://localhost:5000/api/health  
-========================================================
-```
+### Step 3: Open in Your Browser
+Navigate to:
+👉 **http://localhost:5000**
 
 ---
 
-### Step 7: Access the Website in Your Browser
-Open your web browser (Chrome, Edge, Firefox) and navigate to:
-```
-http://localhost:5000
-```
-You will be directed to the **Login Portal**.
+## ☁️ Cloud Deployment Guide
 
-#### Default Demo Credentials:
+You can deploy this project completely free on **Vercel** or **Render**.
+
+### Option A: Deploy on Vercel (Fastest Serverless Preview)
+
+1. Push your repository to GitHub:
+   ```powershell
+   git add .
+   git commit -m "Configure Vercel serverless deployment and self-healing auth"
+   git push origin main
+   ```
+2. Log into [vercel.com](https://vercel.com) with GitHub.
+3. Click **"Add New Project"** and import `subash0807/Smart-traffic`.
+4. Keep the default settings (Framework Preset: **Other**, Root Directory: `./`).
+5. Click **"Deploy"**.
+6. That's it! Vercel will deploy your site using the bundled `vercel.json` and `api/index.js`.
+7. Open the deployed URL and log in immediately using the one-click demo presets!
+
+---
+
+### Option B: Deploy on Render (Recommended for Continuous Simulation)
+
+Render is recommended if you want the traffic simulation engine (`setInterval`) to run continuously in the background 24/7.
+
+1. Push your latest code to GitHub.
+2. Go to [render.com](https://render.com) and log in.
+3. Click **"New +" &rarr; "Web Service"**.
+4. Select your `Smart-traffic` repository.
+5. Set:
+   - **Environment**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `node backend/server.js`
+   - **Plan**: `Free`
+6. Under **Environment Variables**, add:
+   - `NODE_ENV` = `production`
+   - `MONGODB_URI` = *(Your MongoDB Atlas URI, see below)*
+7. Click **"Deploy Web Service"**.
+
+---
+
+## 🗄️ Setting Up Free Cloud MongoDB Atlas (Optional but Recommended)
+
+By default, the project runs in **Standalone In-Memory Demo Mode** so you can log in and test everything immediately without any database setup.
+
+To persist your custom users, new traffic records, and signal histories permanently across restarts:
+
+1. Create a free account at [mongodb.com/atlas](https://www.mongodb.com/cloud/atlas).
+2. Create a free cluster (**M0 Sandbox - Free**).
+3. Under **Security &rarr; Database Access**, create a user (e.g. `traffic_user` with a secure password).
+4. Under **Security &rarr; Network Access**, click **"Add IP Address"** &rarr; select **"Allow Access from Anywhere" (`0.0.0.0/0`)** &rarr; Confirm.
+5. Click **"Connect"** on your Cluster &rarr; choose **"Drivers" (Node.js)** &rarr; copy the connection string:
+   ```text
+   mongodb+srv://traffic_user:<password>@cluster0.abcde.mongodb.net/smart_traffic?retryWrites=true&w=majority
+   ```
+6. Paste this URI into your deployment's Environment Variables as `MONGODB_URI` (in Vercel Project Settings or Render Environment).
+7. The system will connect, auto-seed all demo accounts, and persist all data permanently!
+
+---
+
+## 🔑 Default Demo Credentials
+
+On the login page, you can use the **One-Click Demo Account Autofill** buttons:
+
 | System Role | Email Address | Password |
 |---|---|---|
 | **System Administrator** | `admin@stms.gov.in` | `Password123!` |
 | **Traffic Administrator** | `trafficadmin@stms.gov.in` | `Password123!` |
 | **Traffic Officer** | `officer@stms.gov.in` | `Password123!` |
 
-*(You can also click any of the **One-Click Demo Autofill** buttons on the login page for instant login, or switch to the **"Register New Account"** tab to register any new officer or administrator account!)*
+*(You can also use the **"Register New Account"** tab or the **"↻ Restore / Reseed Demo Accounts"** button anytime).*
 
 ---
 
-## 🧪 Testing the Application
+## 🧪 Automated Testing
 
-### Running Automated Test Suite
-To execute the comprehensive automated test suite covering congestion classification, JWT authentication, user registration, RBAC restrictions, input validation, signals, emergency dispatches, and CSV exports:
-
-In the terminal:
+To run the unit tests:
 ```powershell
-npm test
+node --test backend/tests/congestion.test.js
 ```
-
----
-
-## 📋 REST API Reference
-
-| Method | Endpoint | Description | Role Required |
-|---|---|---|---|
-| `POST` | `/api/auth/login` | Authenticate and obtain JWT token | Public |
-| `POST` | `/api/auth/register` | Register a new user account & get JWT token | Public |
-| `GET` | `/api/auth/me` | Retrieve profile of authenticated user | Officer+ |
-| `GET` | `/api/health` | System health and database connection status | Public |
-| `GET` | `/api/traffic` | Paginated traffic telemetry records | Public / Officer+ |
-| `POST` | `/api/traffic` | Register manual traffic measurement | Officer+ |
-| `PUT` | `/api/traffic/:id` | Update traffic record | Officer+ |
-| `DELETE`| `/api/traffic/:id` | Delete traffic record | Traffic Admin+ |
-| `GET` | `/api/traffic/latest/junctions` | Aggregated latest status for all junctions | Public |
-| `GET` | `/api/signals` | List all simulated traffic signals | Public |
-| `PUT` | `/api/signals/:id` | Update signal mode/phase in simulation | Officer+ |
-| `GET` | `/api/emergency-requests`| List emergency priority corridor requests | Public |
-| `POST`| `/api/emergency-requests`| Dispatch new emergency priority corridor | Officer+ |
-| `PUT` | `/api/emergency-requests/:id` | Approve or complete emergency request | Traffic Admin+ |
-| `GET` | `/api/alerts` | List operational alerts | Public |
-| `PUT` | `/api/alerts/:id/acknowledge` | Acknowledge alert | Officer+ |
-| `PUT` | `/api/alerts/:id/resolve` | Resolve alert | Officer+ |
-| `GET` | `/api/sensors` | List sensor fleet and statuses | Public |
-| `PUT` | `/api/sensors/:id` | Update sensor (simulate failure/recovery) | Traffic Admin+ |
-| `GET` | `/api/reports/summary`| Aggregated metrics summary | Public |
-| `GET` | `/api/reports/export` | Download traffic report as CSV | Public |
-| `GET` | `/api/users` | List user accounts | Admin only |
-| `POST`| `/api/users` | Create user account | Admin only |
-| `PUT` | `/api/users/:id` | Update user account or role | Admin only |
-| `DELETE`| `/api/users/:id` | Delete user account | Admin only |
-| `POST`| `/api/simulation/step` | Advance simulation cycle by 1 step | Public |
-| `POST`| `/api/simulation/toggle` | Toggle automatic simulation ticker | Public |
-| `POST`| `/api/seed` | Reset and reseed demonstration database | Public |
-
----
-
-## 🛠 Troubleshooting Common Issues
-
-1. **Port 5000 Already in Use**:
-   If another application is using port 5000, change `PORT=5001` in `backend/.env`.
-2. **Cannot Connect to Local MongoDB**:
-   No problem! The application defaults to `USE_IN_MEMORY_DB=auto` which automatically initializes an embedded MongoDB engine.
-3. **Map Tiles Not Loading**:
-   Ensure internet connectivity so the browser can fetch OpenStreetMap tiles from `openstreetmap.org`.
-4. **Token Expired Error**:
-   Simply log out and log in again, or use one of the one-click demo presets.
 
 ---
 
 ## 📜 Academic Acknowledgement
 Developed for the **Object-Oriented Analysis and Software Engineering (OOASE)** curriculum demonstrating smart city architectural paradigms, micro-services simulation, and RESTful web development.
-#   S m a r t - t r a f f i c  
- 

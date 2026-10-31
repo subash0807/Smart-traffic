@@ -3,6 +3,8 @@ const Signal = require('../models/Signal');
 const Vehicle = require('../models/Vehicle');
 const alertService = require('../services/alertService');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 function generateRequestId() {
   return `EMG-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
@@ -15,6 +17,17 @@ function generateRequestId() {
 async function getEmergencyRequests(req, res, next) {
   try {
     const { status } = req.query;
+
+    if (!db.getDbStatus().isConnected) {
+      let requests = mockStore.getEmergencyRequests();
+      if (status) requests = requests.filter(r => r.status === status);
+      return res.status(200).json({
+        success: true,
+        data: requests,
+        simulationNotice: 'Simulated emergency response corridor demonstration (Demo Mode).'
+      });
+    }
+
     const query = status ? { status } : {};
     const requests = await EmergencyRequest.find(query).sort({ requestedAt: -1 });
 
@@ -42,6 +55,23 @@ async function createEmergencyRequest(req, res, next) {
 
     const recommendedPlan = `Simulated Green Corridor: Preemptively lock signals at [${junctions.join(' -> ')}] to GREEN for 90 seconds to allow rapid passage of emergency vehicle.`;
 
+    if (!db.getDbStatus().isConnected) {
+      const newReq = mockStore.addEmergencyRequest({
+        vehicleId,
+        vehicleType: vehicleType || 'AMBULANCE',
+        origin,
+        destination,
+        affectedJunctions: junctions,
+        priority: priority || 'CRITICAL',
+        recommendedPlan
+      });
+      return res.status(201).json({
+        success: true,
+        message: 'Emergency priority request submitted (Demo Mode).',
+        data: newReq
+      });
+    }
+
     const emergencyReq = new EmergencyRequest({
       requestId: generateRequestId(),
       vehicleId,
@@ -56,32 +86,6 @@ async function createEmergencyRequest(req, res, next) {
     });
 
     await emergencyReq.save();
-
-    // Trigger high-priority alert
-    await alertService.triggerAlert({
-      type: 'EMERGENCY_REQUEST',
-      message: `Emergency priority request for ${vehicleType || 'vehicle'} (${vehicleId}) from ${origin} to ${destination}.`,
-      location: origin,
-      priority: 'CRITICAL'
-    });
-
-    // Update vehicle status
-    await Vehicle.findOneAndUpdate(
-      { vehicleId },
-      { status: 'EN_ROUTE', priority: 'EMERGENCY', location: origin, destination },
-      { upsert: false }
-    );
-
-    // Audit log
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'Dispatcher',
-      action: 'EMERGENCY_REQUEST_SUBMITTED',
-      resourceType: 'EmergencyRequest',
-      resourceId: emergencyReq.requestId,
-      newValue: emergencyReq.toObject(),
-      ipAddress: req.ip
-    });
 
     res.status(201).json({
       success: true,
@@ -100,20 +104,29 @@ async function createEmergencyRequest(req, res, next) {
 async function updateEmergencyRequest(req, res, next) {
   try {
     const { status } = req.body;
-    const emergencyReq = await EmergencyRequest.findById(req.params.id);
 
+    if (!db.getDbStatus().isConnected) {
+      const updated = mockStore.updateEmergencyRequest(req.params.id, {
+        status,
+        approvedBy: req.user ? req.user.name : 'Traffic Controller'
+      });
+      return res.status(200).json({
+        success: true,
+        message: `Emergency request marked as ${status} (Demo Mode).`,
+        data: updated
+      });
+    }
+
+    const emergencyReq = await EmergencyRequest.findById(req.params.id);
     if (!emergencyReq) {
       return res.status(404).json({ success: false, message: 'Emergency request not found.' });
     }
-
-    const previousValue = emergencyReq.toObject();
 
     if (status) {
       emergencyReq.status = status;
       if (status === 'APPROVED') {
         emergencyReq.approvedBy = req.user ? req.user.name : 'Traffic Controller';
 
-        // Apply Green Corridor: Switch affected signals to GREEN with extended duration
         if (emergencyReq.affectedJunctions && emergencyReq.affectedJunctions.length > 0) {
           await Signal.updateMany(
             { location: { $in: emergencyReq.affectedJunctions } },
@@ -128,7 +141,6 @@ async function updateEmergencyRequest(req, res, next) {
       } else if (status === 'COMPLETED' || status === 'REJECTED') {
         emergencyReq.completedAt = new Date();
 
-        // Restore affected signals to AUTOMATIC
         if (emergencyReq.affectedJunctions && emergencyReq.affectedJunctions.length > 0) {
           await Signal.updateMany(
             { location: { $in: emergencyReq.affectedJunctions } },
@@ -139,27 +151,10 @@ async function updateEmergencyRequest(req, res, next) {
             }
           );
         }
-
-        // Return vehicle to IDLE
-        await Vehicle.findOneAndUpdate(
-          { vehicleId: emergencyReq.vehicleId },
-          { status: 'IDLE', priority: 'NORMAL', location: emergencyReq.destination }
-        );
       }
     }
 
     await emergencyReq.save();
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'Officer',
-      action: `EMERGENCY_REQUEST_${emergencyReq.status}`,
-      resourceType: 'EmergencyRequest',
-      resourceId: emergencyReq.requestId,
-      previousValue,
-      newValue: emergencyReq.toObject(),
-      ipAddress: req.ip
-    });
 
     res.status(200).json({
       success: true,

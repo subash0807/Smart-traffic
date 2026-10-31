@@ -188,6 +188,12 @@
             <span class="badge badge-normal">Officer</span> Traffic Officer
           </button>
         </div>
+
+        <div style="margin-top: 14px; text-align: center;">
+          <button type="button" id="btn-reseed-data" onclick="reseedDemoData()" style="font-size: 0.75rem; color: var(--text-muted); padding: 5px 12px; border: 1px dashed var(--border-medium); border-radius: var(--radius-sm); background: transparent; cursor: pointer; transition: all 0.2s;">
+            ↻ Restore / Reseed Demo Accounts
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -220,6 +226,21 @@
         pwdEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
       showToast(`Autofilled demo credentials for ${email}`, 'info', 2000);
+    }
+
+    // Reseed helper for quick recovery in cloud deployments
+    async function reseedDemoData() {
+      const btn = document.getElementById('btn-reseed-data');
+      if (btn) btn.textContent = 'Restoring database...';
+      try {
+        await api.post('/seed', {});
+        showToast('Demo users and junction data successfully restored!', 'success', 3000);
+        quickFill('admin@stms.gov.in', 'Password123!');
+      } catch (err) {
+        showToast(err.message || 'Seeding failed', 'error');
+      } finally {
+        if (btn) btn.textContent = '↻ Restore / Reseed Demo Accounts';
+      }
     }
 
     // Toggle password visibility helpers

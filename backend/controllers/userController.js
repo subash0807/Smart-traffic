@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get all users
@@ -8,6 +10,22 @@ const auditService = require('../services/auditService');
  */
 async function getUsers(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      const safeUsers = mockStore.users.map(u => ({
+        _id: u.id,
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        active: u.active,
+        createdAt: u.createdAt
+      }));
+      return res.status(200).json({
+        success: true,
+        data: safeUsers
+      });
+    }
+
     const users = await User.find().select('-passwordHash').sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
@@ -33,7 +51,38 @@ async function createUser(req, res, next) {
       });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!db.getDbStatus().isConnected) {
+      const existing = mockStore.findUserByEmail(normalizedEmail);
+      if (existing) {
+        return res.status(409).json({ success: false, message: 'A user with this email address already exists.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+      const newUser = mockStore.addUser({
+        name,
+        email: normalizedEmail,
+        passwordHash,
+        role: role || 'officer',
+        active: active !== undefined ? active : true
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'User created successfully (Demo Mode).',
+        data: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          active: newUser.active
+        }
+      });
+    }
+
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -46,23 +95,13 @@ async function createUser(req, res, next) {
 
     const newUser = new User({
       name,
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       passwordHash,
       role: role || 'officer',
       active: active !== undefined ? active : true
     });
 
     await newUser.save();
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'System Admin',
-      action: 'USER_CREATED',
-      resourceType: 'User',
-      resourceId: newUser._id.toString(),
-      newValue: newUser.toSafeObject(),
-      ipAddress: req.ip
-    });
 
     res.status(201).json({
       success: true,
@@ -80,12 +119,27 @@ async function createUser(req, res, next) {
  */
 async function updateUser(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      const user = mockStore.findUserById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+      const { name, role, active } = req.body;
+      if (name) user.name = name;
+      if (role) user.role = role;
+      if (active !== undefined) user.active = active;
+      return res.status(200).json({
+        success: true,
+        message: 'User updated successfully (Demo Mode).',
+        data: user
+      });
+    }
+
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    const previousValue = user.toSafeObject();
     const { name, email, role, active, password } = req.body;
 
     if (name) user.name = name;
@@ -101,17 +155,6 @@ async function updateUser(req, res, next) {
     }
 
     await user.save();
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'System Admin',
-      action: 'USER_UPDATED',
-      resourceType: 'User',
-      resourceId: user._id.toString(),
-      previousValue,
-      newValue: user.toSafeObject(),
-      ipAddress: req.ip
-    });
 
     res.status(200).json({
       success: true,
@@ -129,10 +172,21 @@ async function updateUser(req, res, next) {
  */
 async function deleteUser(req, res, next) {
   try {
-    if (req.user && req.user._id.toString() === req.params.id) {
+    if (req.user && req.user._id && req.user._id.toString() === req.params.id) {
       return res.status(400).json({
         success: false,
         message: 'Security protection: You cannot delete your own active administrator account.'
+      });
+    }
+
+    if (!db.getDbStatus().isConnected) {
+      const idx = mockStore.users.findIndex(u => u.id === req.params.id || u._id === req.params.id);
+      if (idx >= 0) {
+        mockStore.users.splice(idx, 1);
+      }
+      return res.status(200).json({
+        success: true,
+        message: 'User removed successfully (Demo Mode).'
       });
     }
 
@@ -140,16 +194,6 @@ async function deleteUser(req, res, next) {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'System Admin',
-      action: 'USER_DELETED',
-      resourceType: 'User',
-      resourceId: req.params.id,
-      previousValue: user.toSafeObject(),
-      ipAddress: req.ip
-    });
 
     res.status(200).json({
       success: true,

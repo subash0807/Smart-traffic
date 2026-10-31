@@ -3,9 +3,11 @@
  */
 
 const isLocalDevelopmentHost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
-const API_BASE = isLocalDevelopmentHost && window.location.port !== '5000'
-  ? 'http://localhost:5000/api'
-  : '/api';
+const API_BASE = window.STMS_API_BASE || localStorage.getItem('stms_custom_api') || (
+  isLocalDevelopmentHost && window.location.port !== '5000'
+    ? 'http://localhost:5000/api'
+    : '/api'
+);
 
 const api = {
   getToken() {

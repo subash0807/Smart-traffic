@@ -1,5 +1,7 @@
 const Signal = require('../models/Signal');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get all signals
@@ -7,6 +9,15 @@ const auditService = require('../services/auditService');
  */
 async function getSignals(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        data: mockStore.getSignals(),
+        isSimulation: true,
+        notice: 'Demonstration software simulation only.'
+      });
+    }
+
     const signals = await Signal.find().sort({ location: 1 });
     res.status(200).json({
       success: true,
@@ -25,6 +36,14 @@ async function getSignals(req, res, next) {
  */
 async function getSignalById(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      const signal = mockStore.getSignalById(req.params.id);
+      if (!signal) {
+        return res.status(404).json({ success: false, message: 'Signal not found.' });
+      }
+      return res.status(200).json({ success: true, data: signal });
+    }
+
     const signal = await Signal.findById(req.params.id);
     if (!signal) {
       return res.status(404).json({ success: false, message: 'Signal not found.' });
@@ -42,6 +61,14 @@ async function getSignalById(req, res, next) {
 async function createSignal(req, res, next) {
   try {
     const { signalId, location, latitude, longitude, status, mode, duration } = req.body;
+
+    if (!db.getDbStatus().isConnected) {
+      return res.status(201).json({
+        success: true,
+        message: 'Signal created (Demo Mode).',
+        data: { signalId, location, latitude, longitude, status, mode, duration }
+      });
+    }
 
     const existing = await Signal.findOne({ signalId });
     if (existing) {
@@ -61,16 +88,6 @@ async function createSignal(req, res, next) {
 
     await signal.save();
 
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'Traffic Operator',
-      action: 'SIGNAL_CREATED',
-      resourceType: 'Signal',
-      resourceId: signal._id.toString(),
-      newValue: signal.toObject(),
-      ipAddress: req.ip
-    });
-
     res.status(201).json({
       success: true,
       message: 'Signal created successfully.',
@@ -87,15 +104,27 @@ async function createSignal(req, res, next) {
  */
 async function updateSignal(req, res, next) {
   try {
+    const { status, mode, duration, location, latitude, longitude } = req.body;
+
+    if (!db.getDbStatus().isConnected) {
+      const updated = mockStore.updateSignal(req.params.id, req.body, req.user ? req.user.name : 'Operator');
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Signal not found.' });
+      }
+      return res.status(200).json({
+        success: true,
+        message: 'Signal updated successfully in simulation (Demo Mode).',
+        data: updated
+      });
+    }
+
     const signal = await Signal.findById(req.params.id);
     if (!signal) {
       return res.status(404).json({ success: false, message: 'Signal not found.' });
     }
 
     const previousValue = signal.toObject();
-    const { status, mode, duration, location, latitude, longitude } = req.body;
 
-    // Validate state transition if status changes
     if (status && status !== signal.status) {
       signal.stateHistory.push({
         previousStatus: signal.status,
@@ -116,17 +145,6 @@ async function updateSignal(req, res, next) {
     signal.lastUpdated = new Date();
     await signal.save();
 
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'Operator',
-      action: 'SIGNAL_STATE_MODIFIED',
-      resourceType: 'Signal',
-      resourceId: signal._id.toString(),
-      previousValue,
-      newValue: signal.toObject(),
-      ipAddress: req.ip
-    });
-
     res.status(200).json({
       success: true,
       message: 'Signal updated successfully in simulation.',
@@ -143,20 +161,17 @@ async function updateSignal(req, res, next) {
  */
 async function deleteSignal(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        message: 'Signal removed (Demo Mode).'
+      });
+    }
+
     const signal = await Signal.findByIdAndDelete(req.params.id);
     if (!signal) {
       return res.status(404).json({ success: false, message: 'Signal not found.' });
     }
-
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName: req.user ? req.user.name : 'Admin',
-      action: 'SIGNAL_DELETED',
-      resourceType: 'Signal',
-      resourceId: req.params.id,
-      previousValue: signal.toObject(),
-      ipAddress: req.ip
-    });
 
     res.status(200).json({
       success: true,

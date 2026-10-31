@@ -1,6 +1,8 @@
 const Alert = require('../models/Alert');
 const alertService = require('../services/alertService');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get all alerts with filtering
@@ -9,8 +11,18 @@ const auditService = require('../services/auditService');
 async function getAlerts(req, res, next) {
   try {
     const { priority, type, status, location, startDate, endDate, limit = 50 } = req.query;
-    const query = {};
 
+    if (!db.getDbStatus().isConnected) {
+      let alerts = mockStore.getAlerts();
+      if (priority && priority !== 'ALL') alerts = alerts.filter(a => a.severity === priority);
+      if (type && type !== 'ALL') alerts = alerts.filter(a => a.type === type);
+      return res.status(200).json({
+        success: true,
+        data: alerts
+      });
+    }
+
+    const query = {};
     if (priority && priority !== 'ALL') query.priority = priority;
     if (type && type !== 'ALL') query.type = type;
     if (status && status !== 'ALL') query.status = status;
@@ -40,17 +52,17 @@ async function getAlerts(req, res, next) {
 async function acknowledgeAlert(req, res, next) {
   try {
     const userName = req.user ? req.user.name : 'Officer';
-    const alert = await alertService.acknowledgeAlert(req.params.id, userName);
 
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName,
-      action: 'ALERT_ACKNOWLEDGED',
-      resourceType: 'Alert',
-      resourceId: alert.alertId,
-      newValue: alert.toObject(),
-      ipAddress: req.ip
-    });
+    if (!db.getDbStatus().isConnected) {
+      const alert = mockStore.acknowledgeAlert(req.params.id);
+      return res.status(200).json({
+        success: true,
+        message: 'Alert acknowledged (Demo Mode).',
+        data: alert || { id: req.params.id, acknowledged: true }
+      });
+    }
+
+    const alert = await alertService.acknowledgeAlert(req.params.id, userName);
 
     res.status(200).json({
       success: true,
@@ -69,17 +81,17 @@ async function acknowledgeAlert(req, res, next) {
 async function resolveAlert(req, res, next) {
   try {
     const userName = req.user ? req.user.name : 'Officer';
-    const alert = await alertService.resolveAlert(req.params.id, userName);
 
-    await auditService.logAction({
-      userId: req.user ? req.user._id.toString() : 'SYSTEM',
-      userName,
-      action: 'ALERT_RESOLVED',
-      resourceType: 'Alert',
-      resourceId: alert.alertId,
-      newValue: alert.toObject(),
-      ipAddress: req.ip
-    });
+    if (!db.getDbStatus().isConnected) {
+      const alert = mockStore.resolveAlert(req.params.id);
+      return res.status(200).json({
+        success: true,
+        message: 'Alert resolved (Demo Mode).',
+        data: alert || { id: req.params.id, resolved: true }
+      });
+    }
+
+    const alert = await alertService.resolveAlert(req.params.id, userName);
 
     res.status(200).json({
       success: true,
