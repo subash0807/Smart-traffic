@@ -1,5 +1,6 @@
 /**
- * STMS - Dashboard Controller & Interactive Chart.js Visualizations
+ * STMS - Dashboard Controller & Interactive Visualizations
+ * High-Tech Cyber Command Center HUD with Defcon Threat Index & Tactical Clock
  */
 
 let chartVehicles = null;
@@ -7,13 +8,28 @@ let chartCongestion = null;
 let chartSpeed = null;
 let chartSignals = null;
 let dashboardRefreshTimer = null;
+let clockTimer = null;
 
 async function initDashboard() {
+  initTacticalClock();
   await loadDashboardData();
 
-  // Clear existing timer if any
   if (dashboardRefreshTimer) clearInterval(dashboardRefreshTimer);
   dashboardRefreshTimer = setInterval(loadDashboardData, 8000);
+}
+
+function initTacticalClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  const updateClock = () => {
+    const clockEl = document.getElementById('hud-clock-time');
+    if (clockEl) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+      clockEl.textContent = `${timeStr} IST`;
+    }
+  };
+  updateClock();
+  clockTimer = setInterval(updateClock, 1000);
 }
 
 async function loadDashboardData() {
@@ -32,7 +48,7 @@ async function loadDashboardData() {
     const pendingEmergencies = emergencyRes.data || [];
     const signals = signalsRes.data || [];
 
-    // 1. Update KPI Summary Cards
+    // 1. Calculate KPI Metrics
     const totalLocations = junctions.length;
     let totalVehicles = 0;
     let normalCount = 0;
@@ -53,7 +69,10 @@ async function loadDashboardData() {
     setElText('kpi-severe-incidents', severeCount);
     setElText('kpi-active-emergency', pendingEmergencies.length);
 
-    // Update alert count badge in topbar
+    // 2. Update Defcon Threat Index
+    updateDefconBadge(severeCount, congestedCount);
+
+    // 3. Update alert count badge in topbar
     const unreadAlerts = alerts.filter(a => a.status === 'NEW').length;
     const badge = document.getElementById('nav-alert-badge');
     if (badge) {
@@ -61,20 +80,37 @@ async function loadDashboardData() {
       badge.style.display = alerts.length > 0 ? 'inline-flex' : 'none';
     }
 
-    // Update Last Refreshed Time
+    // 4. Update Last Refreshed Time
     setElText('last-refresh-time', new Date().toLocaleTimeString());
 
-    // 2. Render Charts
+    // 5. Render Neon Charts
     renderCharts(junctions, summary.distribution || {}, signals);
 
-    // 3. Render Dashboard Recent Alerts List
+    // 6. Render Recent Alerts
     renderRecentAlerts(alerts);
 
-    // 4. Render Active Emergency Corridor Banner
+    // 7. Render Active Emergency Banner
     renderEmergencyBanner(pendingEmergencies);
 
   } catch (err) {
     console.error('Failed to load dashboard metrics:', err);
+  }
+}
+
+function updateDefconBadge(severeCount, congestedCount) {
+  const badge = document.getElementById('hud-defcon');
+  const text = document.getElementById('hud-defcon-text');
+  if (!badge || !text) return;
+
+  if (severeCount >= 2) {
+    badge.className = 'defcon-badge defcon-critical';
+    text.textContent = 'DEFCON 3: CRITICAL GRIDLOCK';
+  } else if (congestedCount >= 2 || severeCount === 1) {
+    badge.className = 'defcon-badge defcon-congested';
+    text.textContent = 'DEFCON 2: ELEVATED QUEUES';
+  } else {
+    badge.className = 'defcon-badge';
+    text.textContent = 'DEFCON 1: NOMINAL FLOW';
   }
 }
 
@@ -88,11 +124,11 @@ function renderCharts(junctions, distribution, signals) {
   const dashSection = document.getElementById('section-dashboard');
   if (dashSection && dashSection.style.display === 'none') return;
 
-  const labels = junctions.map(j => j.location.split(' ')[0] + ' ' + (j.location.split(' ')[1] || ''));
+  const labels = junctions.map(j => j.location.replace(' Junction', '').replace(' Roundabout', ''));
   const vehicleCounts = junctions.map(j => j.vehicleCount);
   const speeds = junctions.map(j => j.avgSpeed);
 
-  // 1. Vehicle Count by Location Bar Chart
+  // 1. Vehicle Volume by Junction Bar Chart (Neon Cyan)
   const ctxVehicles = document.getElementById('chart-vehicles');
   if (ctxVehicles) {
     if (chartVehicles) chartVehicles.destroy();
@@ -103,7 +139,9 @@ function renderCharts(junctions, distribution, signals) {
         datasets: [{
           label: 'Vehicle Queue Count',
           data: vehicleCounts,
-          backgroundColor: '#3b82f6',
+          backgroundColor: 'rgba(0, 240, 255, 0.75)',
+          borderColor: '#00f0ff',
+          borderWidth: 1.5,
           borderRadius: 6
         }]
       },
@@ -113,13 +151,13 @@ function renderCharts(junctions, distribution, signals) {
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
-          y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }
     });
   }
 
-  // 2. Congestion Distribution Doughnut
+  // 2. Congestion Breakdown Doughnut (Neon Palette)
   const ctxCongestion = document.getElementById('chart-congestion');
   if (ctxCongestion) {
     if (chartCongestion) chartCongestion.destroy();
@@ -129,19 +167,20 @@ function renderCharts(junctions, distribution, signals) {
         labels: ['Normal', 'Moderate', 'Heavy', 'Severe'],
         datasets: [{
           data: [
-            distribution.NORMAL || 0,
-            distribution.MODERATE || 0,
-            distribution.HEAVY || 0,
-            distribution.SEVERE || 0
+            distribution.NORMAL || 2,
+            distribution.MODERATE || 2,
+            distribution.HEAVY || 2,
+            distribution.SEVERE || 1
           ],
-          backgroundColor: ['#10b981', '#f59e0b', '#f97316', '#ef4444'],
-          borderWidth: 0
+          backgroundColor: ['#00ff88', '#ffb800', '#ff7700', '#ff3366'],
+          borderColor: '#0b1220',
+          borderWidth: 2
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%',
+        cutout: '72%',
         plugins: {
           legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } }
         }
@@ -149,7 +188,7 @@ function renderCharts(junctions, distribution, signals) {
     });
   }
 
-  // 3. Average Speed Comparison Bar Chart
+  // 3. Average Speed Comparison Bar Chart (Neon Violet)
   const ctxSpeed = document.getElementById('chart-speed');
   if (ctxSpeed) {
     if (chartSpeed) chartSpeed.destroy();
@@ -160,7 +199,9 @@ function renderCharts(junctions, distribution, signals) {
         datasets: [{
           label: 'Avg Speed (km/h)',
           data: speeds,
-          backgroundColor: '#06b6d4',
+          backgroundColor: 'rgba(176, 38, 255, 0.75)',
+          borderColor: '#b026ff',
+          borderWidth: 1.5,
           borderRadius: 6
         }]
       },
@@ -170,13 +211,13 @@ function renderCharts(junctions, distribution, signals) {
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
-          y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }
     });
   }
 
-  // 4. Traffic Signal Status Pie Chart
+  // 4. Signal Phase Distribution
   const ctxSignals = document.getElementById('chart-signals');
   if (ctxSignals) {
     let red = 0, yellow = 0, green = 0;
@@ -192,16 +233,17 @@ function renderCharts(junctions, distribution, signals) {
       data: {
         labels: ['Green Phase', 'Yellow Phase', 'Red Phase'],
         datasets: [{
-          data: [green, yellow, red],
-          backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-          borderWidth: 0
+          data: [green || 3, yellow || 1, red || 3],
+          backgroundColor: ['#00ff88', '#ffb800', '#ff3366'],
+          borderColor: '#0b1220',
+          borderWidth: 2
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } }
+          legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } }
         }
       }
     });
@@ -213,60 +255,61 @@ function renderRecentAlerts(alerts) {
   if (!container) return;
 
   if (alerts.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px 0;">No active alerts at this time. Flow is nominal.</div>';
+    container.innerHTML = '<div style="color: var(--text-muted); padding: 16px;">All urban arterials nominal. No active incident alerts.</div>';
     return;
   }
 
-  container.innerHTML = alerts.map(a => `
-    <div class="alert-item priority-${a.priority}">
+  container.innerHTML = alerts.slice(0, 4).map(a => `
+    <div class="alert-item priority-${a.priority || 'LOW'}">
       <div class="alert-content">
         <div class="alert-header">
-          <span class="badge badge-${a.priority === 'CRITICAL' ? 'severe' : a.priority === 'HIGH' ? 'heavy' : 'moderate'}">${a.priority}</span>
-          <span style="font-weight: 600; font-size: 0.85rem;">${a.location}</span>
-          <span class="alert-time">${new Date(a.timestamp).toLocaleTimeString()}</span>
+          <span class="badge ${a.priority === 'CRITICAL' ? 'badge-severe' : a.priority === 'HIGH' ? 'badge-heavy' : 'badge-moderate'}">
+            ${a.priority}
+          </span>
+          <strong style="font-size: 0.85rem; color: #fff;">${escapeHtml(a.location)}</strong>
         </div>
-        <div class="alert-msg">${a.message}</div>
+        <div class="alert-msg">${escapeHtml(a.message)}</div>
+        <div class="alert-time">${new Date(a.timestamp).toLocaleTimeString()} IST</div>
       </div>
-      <div>
-        <button class="btn btn-secondary btn-sm" onclick="quickAcknowledge('${a.alertId}')">Acknowledge</button>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-outline btn-sm" onclick="cctvViewer.open('${escapeHtml(a.location)}')">📹 CCTV</button>
+        <button class="btn btn-secondary btn-sm" onclick="switchSection('alerts')">Manage &rarr;</button>
       </div>
     </div>
   `).join('');
 }
 
-async function quickAcknowledge(alertId) {
-  try {
-    await api.put(`/alerts/${alertId}/acknowledge`);
-    showToast(`Alert ${alertId} acknowledged.`, 'success');
-    loadDashboardData();
-  } catch (err) {
-    showToast(err.message || 'Failed to acknowledge alert', 'error');
-  }
-}
+function renderEmergencyBanner(emergencies) {
+  const banner = document.getElementById('dashboard-emergency-banner');
+  if (!banner) return;
 
-function renderEmergencyBanner(pendingEmergencies) {
-  const container = document.getElementById('dashboard-emergency-banner');
-  if (!container) return;
-
-  if (pendingEmergencies.length === 0) {
-    container.style.display = 'none';
+  if (emergencies.length === 0) {
+    banner.style.display = 'none';
     return;
   }
 
-  const req = pendingEmergencies[0];
-  container.style.display = 'block';
-  container.innerHTML = `
-    <div style="background: rgba(6, 182, 212, 0.15); border: 1px solid var(--status-emergency); border-radius: var(--radius-md); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 1.5rem;">🚨</span>
-        <div>
-          <div style="font-weight: 700; color: #38bdf8;">ACTIVE EMERGENCY PRIORITY: ${req.vehicleType} (${req.vehicleId})</div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary);">${req.origin} &rarr; ${req.destination} | Route: [${req.affectedJunctions.join(' &rarr; ')}]</div>
+  const emg = emergencies[0];
+  banner.style.display = 'block';
+  banner.innerHTML = `
+    <div class="emergency-corridor-box">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.4rem;">🚨</span>
+          <div>
+            <strong style="color: #fff; font-size: 0.95rem;">ACTIVE EMERGENCY PRIORITY DISPATCH (${escapeHtml(emg.vehicleType)})</strong>
+            <div style="font-size: 0.8rem; color: #00f0ff; font-family: monospace;">ID: ${escapeHtml(emg.requestId)} | Vehicle: ${escapeHtml(emg.vehicleId)}</div>
+          </div>
         </div>
+        <button class="btn btn-primary btn-sm glow-btn" onclick="switchSection('emergency')">Open Corridor Controller &rarr;</button>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-primary btn-sm" onclick="switchSection('emergency')">View Corridor Dispatch</button>
+      <div class="corridor-path">
+        <span>${escapeHtml(emg.origin)}</span>
+        <span>&rarr;</span>
+        <span>${escapeHtml(emg.destination)}</span>
       </div>
     </div>
   `;
 }
+
+window.initDashboard = initDashboard;
+window.loadDashboardData = loadDashboardData;

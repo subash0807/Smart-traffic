@@ -47,8 +47,8 @@ app.use(
           'https://cdnjs.cloudflare.com'
         ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
-        imgSrc: ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org', 'https://unpkg.com'],
-        connectSrc: ["'self'", 'https://*.tile.openstreetmap.org', 'http://localhost:*', 'https://*']
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://unpkg.com'],
+        connectSrc: ["'self'", 'https://*.tile.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'http://localhost:*', 'https://*']
       }
     },
     crossOriginEmbedderPolicy: false

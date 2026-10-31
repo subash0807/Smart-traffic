@@ -35,10 +35,11 @@ function renderSignalsList(signals) {
     const isRed = s.status === 'RED';
     const isYellow = s.status === 'YELLOW';
     const isGreen = s.status === 'GREEN';
+    const activeColor = isRed ? '#ff3366' : isYellow ? '#ffb800' : '#00ff88';
 
     return `
       <div class="signal-card">
-        <!-- Animated 3-Lens Traffic Light Housing -->
+        <!-- 3D Physical Traffic Light Housing with Glow -->
         <div class="signal-housing">
           <div class="signal-lens red ${isRed ? 'active' : ''}"></div>
           <div class="signal-lens yellow ${isYellow ? 'active' : ''}"></div>
@@ -53,13 +54,16 @@ function renderSignalsList(signals) {
           </div>
 
           <div class="signal-meta">
-            <div>Signal ID: <code style="color: var(--text-accent);">${s.signalId}</code></div>
-            <div>Phase: <strong style="color: ${isRed ? '#ef4444' : isYellow ? '#f59e0b' : '#10b981'};">${s.status}</strong> (${s.duration}s timer)</div>
-            <div>Last Switched: ${new Date(s.lastUpdated).toLocaleTimeString()}</div>
+            <div>Signal ID: <code style="color: #00f0ff;">${s.signalId}</code></div>
+            <div>Phase: <strong style="color: ${activeColor}; font-size: 0.9rem;">${s.status}</strong> (${s.duration}s timer)</div>
+            <div>Last State Switch: ${new Date(s.lastUpdated).toLocaleTimeString()}</div>
           </div>
 
           <!-- Controls for Manual / Mode Switch -->
-          <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+            <button class="btn btn-outline btn-sm" onclick="cctvViewer.open('${escapeHtml(s.location)}')">
+              📹 View CCTV
+            </button>
             <button class="btn btn-outline btn-sm" onclick="toggleSignalMode('${s._id}', '${s.mode}')">
               Set ${isAuto ? 'MANUAL' : 'AUTO'}
             </button>
@@ -84,6 +88,7 @@ function renderSignalsList(signals) {
 
 async function toggleSignalMode(id, currentMode) {
   const newMode = currentMode === 'AUTOMATIC' ? 'MANUAL' : 'AUTOMATIC';
+  if (window.soundFx) window.soundFx.playClick();
   try {
     await api.put(`/signals/${id}`, { mode: newMode });
     showToast(`Signal operating mode switched to ${newMode}.`, 'info');
@@ -94,79 +99,92 @@ async function toggleSignalMode(id, currentMode) {
 }
 
 async function promptChangeSignalState(id, location, newStatus) {
-  if (confirm(`SIMULATION CONFIRMATION:\nAre you sure you want to manually command the signal at "${location}" to ${newStatus}?`)) {
+  if (confirm(`SIMULATION COMMAND:\nCommand the signal at "${location}" to force ${newStatus}?`)) {
+    if (window.soundFx) window.soundFx.playSuccess();
     try {
       await api.put(`/signals/${id}`, { status: newStatus, mode: 'MANUAL' });
-      showToast(`Signal at ${location} set to ${newStatus} (Switched to MANUAL mode).`, 'success');
+      showToast(`Signal at ${location} commanded to ${newStatus}.`, 'success');
       loadSignals();
+      if (typeof loadDashboardData === 'function') loadDashboardData();
     } catch (err) {
-      showToast(err.message || 'Command rejected', 'error');
+      showToast(err.message || 'Failed to command signal', 'error');
     }
   }
 }
 
 async function openSignalHistory(id) {
-  const signal = currentSignals.find(s => s._id === id);
-  if (!signal) return;
+  try {
+    const res = await api.get(`/signals/${id}`);
+    const signal = res.data;
+    if (!signal) return;
 
-  const historyList = signal.stateHistory || [];
-  let html = `
-    <h3 style="margin-bottom: 12px;">Signal Phase Change History</h3>
-    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">Signal: ${escapeHtml(signal.location)} (${signal.signalId})</div>
-    <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Previous</th>
-            <th>New State</th>
-            <th>Mode</th>
-            <th>Operator</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
+    const history = signal.stateHistory || [];
+    let historyHtml = '<div style="max-height: 350px; overflow-y: auto;">';
 
-  if (historyList.length === 0) {
-    html += `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No manual state transitions recorded yet.</td></tr>`;
-  } else {
-    historyList.slice().reverse().forEach(h => {
-      html += `
-        <tr>
-          <td>${new Date(h.timestamp).toLocaleTimeString()}</td>
-          <td>${h.previousStatus || '-'}</td>
-          <td><strong>${h.newStatus}</strong></td>
-          <td>${h.mode || 'MANUAL'}</td>
-          <td>${h.changedBy || 'System'}</td>
-        </tr>
+    if (history.length === 0) {
+      historyHtml += '<p style="color: var(--text-muted); padding: 12px 0;">No manual transition overrides logged yet. Signal is in nominal autonomous cycle.</p>';
+    } else {
+      historyHtml += `
+        <table class="table" style="font-size: 0.8rem; margin-top: 8px;">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Transition</th>
+              <th>Mode</th>
+              <th>Commanded By</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${history.slice().reverse().map(h => `
+              <tr>
+                <td>${new Date(h.timestamp).toLocaleTimeString()}</td>
+                <td>
+                  <span class="badge ${h.previousStatus === 'GREEN' ? 'badge-normal' : h.previousStatus === 'RED' ? 'badge-severe' : 'badge-moderate'}">${h.previousStatus}</span>
+                  &rarr;
+                  <span class="badge ${h.newStatus === 'GREEN' ? 'badge-normal' : h.newStatus === 'RED' ? 'badge-severe' : 'badge-moderate'}">${h.newStatus}</span>
+                </td>
+                <td><span class="badge badge-secondary">${h.mode}</span></td>
+                <td><code>${escapeHtml(h.changedBy || 'System')}</code></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       `;
-    });
-  }
+    }
+    historyHtml += '</div>';
 
-  html += `</tbody></table></div>`;
+    // Show in modal
+    let modal = document.getElementById('modal-signal-history');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'modal-signal-history';
+      modal.className = 'modal-overlay active';
+      document.body.appendChild(modal);
+    } else {
+      modal.className = 'modal-overlay active';
+    }
 
-  showGenericModal('Signal Transition Audit Log', html);
-}
-
-function showGenericModal(title, bodyHtml) {
-  let modal = document.getElementById('modal-generic');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'modal-generic';
-    modal.className = 'modal-backdrop';
     modal.innerHTML = `
       <div class="modal-card">
         <div class="modal-header">
-          <h3 id="modal-generic-title" style="font-size: 1.1rem;"></h3>
-          <button class="modal-close" onclick="document.getElementById('modal-generic').classList.remove('active')">&times;</button>
+          <h3 class="modal-title"><span>🚥</span> State Transition Log: ${escapeHtml(signal.location)}</h3>
+          <button class="modal-close" onclick="document.getElementById('modal-signal-history').classList.remove('active')">&times;</button>
         </div>
-        <div class="modal-body" id="modal-generic-body"></div>
+        <div class="modal-body">
+          ${historyHtml}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('modal-signal-history').classList.remove('active')">Close</button>
+        </div>
       </div>
     `;
-    document.body.appendChild(modal);
+  } catch (err) {
+    showToast(err.message || 'Failed to load signal audit history', 'error');
   }
-
-  document.getElementById('modal-generic-title').textContent = title;
-  document.getElementById('modal-generic-body').innerHTML = bodyHtml;
-  modal.classList.add('active');
 }
+
+window.initSignals = initSignals;
+window.loadSignals = loadSignals;
+window.toggleSignalMode = toggleSignalMode;
+window.promptChangeSignalState = promptChangeSignalState;
+window.openSignalHistory = openSignalHistory;

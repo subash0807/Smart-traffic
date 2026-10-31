@@ -14,45 +14,72 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.15), transparent 70%), var(--bg-primary);
+      background-color: #060a12;
+      background-image: 
+        radial-gradient(circle at 50% 20%, rgba(0, 240, 255, 0.12), transparent 70%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 36px 36px, 36px 36px;
     }
     .login-card {
       width: 100%;
-      max-width: 480px;
-      background-color: var(--bg-secondary);
-      border: 1px solid var(--border-medium);
+      max-width: 500px;
+      background: rgba(11, 18, 32, 0.85);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(0, 240, 255, 0.3);
       border-radius: var(--radius-lg);
-      padding: 32px 28px;
-      box-shadow: var(--shadow-lg), 0 0 40px rgba(37, 99, 235, 0.15);
+      padding: 36px 32px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 240, 255, 0.15);
+      position: relative;
+    }
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 15%;
+      right: 15%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #00f0ff, transparent);
+      box-shadow: 0 0 15px #00f0ff;
     }
     .login-brand {
       display: flex;
       align-items: center;
-      gap: 14px;
-      margin-bottom: 20px;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .brand-title-tech {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
     }
     .auth-tab-bar {
       display: flex;
       border-bottom: 1px solid var(--border-subtle);
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
     .auth-tab-btn {
       flex: 1;
-      padding: 10px 14px;
+      padding: 12px 14px;
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
       color: var(--text-muted);
-      font-size: 0.9rem;
-      font-weight: 600;
+      font-size: 0.875rem;
+      font-weight: 700;
       cursor: pointer;
       transition: all var(--transition-fast);
       text-align: center;
+      letter-spacing: 0.03em;
     }
     .auth-tab-btn.active {
-      color: var(--text-accent);
-      border-bottom-color: var(--primary);
-      background: rgba(59, 130, 246, 0.08);
+      color: #00f0ff;
+      border-bottom-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.06);
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
     }
     .auth-tab-btn:hover:not(.active) {
       color: var(--text-primary);
@@ -90,8 +117,8 @@
       <div class="login-brand">
         <div class="brand-icon">🚦</div>
         <div>
-          <h1 class="brand-title" style="font-size: 1.25rem;">STMS CONTROL CENTER</h1>
-          <span class="brand-subtitle">Smart Traffic Management System</span>
+          <h1 class="brand-title-tech">STMS CONTROL CENTER</h1>
+          <span class="brand-subtitle">Smart City Traffic Operations • Chennai Division</span>
         </div>
       </div>
 
@@ -202,9 +229,11 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>
+  <script src="/js/sound.js"></script>
   <script>
     // Tab switching between Login and Register
     function switchAuthTab(tab) {
+      if (window.soundFx) window.soundFx.playClick();
       document.getElementById('tab-login').classList.toggle('active', tab === 'login');
       document.getElementById('tab-register').classList.toggle('active', tab === 'register');
       document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
@@ -214,6 +243,7 @@
 
     // Quick autofill helper
     function quickFill(email, pwd) {
+      if (window.soundFx) window.soundFx.playSuccess();
       switchAuthTab('login');
       const emailEl = document.getElementById('login-email') || document.querySelector('input[name="email"]');
       const pwdEl = document.getElementById('login-password') || document.querySelector('input[name="password"]');

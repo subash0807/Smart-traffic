@@ -56,6 +56,16 @@
         <span class="nav-icon">🚨</span>
         <span class="nav-text">Emergency Priority</span>
       </button>
+      <button type="button" class="nav-item" data-section="ai-optimizer" onclick="switchSection('ai-optimizer')" aria-label="AI Smart Optimizer">
+        <span class="nav-icon">🧠</span>
+        <span class="nav-text">AI Smart Optimizer</span>
+        <span class="badge" style="margin-left: auto; background: rgba(0,240,255,0.15); color: #00f0ff; border: 1px solid #00f0ff; font-size: 0.6rem;">NEW</span>
+      </button>
+      <button type="button" class="nav-item" onclick="cctvViewer.open()" aria-label="Live CCTV Cameras">
+        <span class="nav-icon">📹</span>
+        <span class="nav-text">Live CCTV Cameras</span>
+        <span class="badge badge-normal" style="margin-left: auto; font-size: 0.6rem;">LIVE</span>
+      </button>
 
       <div class="menu-category">Operations</div>
       <button type="button" class="nav-item" data-section="alerts" id="nav-btn-alerts" onclick="switchSection('alerts')" aria-label="Alerts & Incidents">
@@ -111,6 +121,30 @@
       </div>
 
       <div class="topbar-right">
+        <!-- Tactical HUD Clock -->
+        <div class="hud-clock-box">
+          <span>⏰</span> <span id="hud-clock-time">--:--:-- IST</span>
+        </div>
+
+        <!-- Defcon Traffic Threat Index -->
+        <div class="defcon-badge" id="hud-defcon">
+          <span>🛡️</span> <span id="hud-defcon-text">DEFCON 1: NOMINAL</span>
+        </div>
+
+        <!-- Dynamic Weather Simulation Controls -->
+        <div class="weather-bar">
+          <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; margin-right: 2px;">WEATHER:</span>
+          <button type="button" class="weather-pill-btn active" data-weather="CLEAR" onclick="weatherSimulator.setCondition('CLEAR')">☀️ Clear</button>
+          <button type="button" class="weather-pill-btn" data-weather="MONSOON" onclick="weatherSimulator.setCondition('MONSOON')">🌧️ Monsoon</button>
+          <button type="button" class="weather-pill-btn" data-weather="FOG" onclick="weatherSimulator.setCondition('FOG')">🌫️ Fog</button>
+          <button type="button" class="weather-pill-btn" data-weather="ACCIDENT" onclick="weatherSimulator.setCondition('ACCIDENT')">💥 Accident</button>
+        </div>
+
+        <!-- Emergency City Flush Panic Protocol -->
+        <button class="btn btn-flush-panic btn-sm" onclick="triggerCityFlushProtocol()" title="Emergency City-Wide Signal Flush to evacuate queues">
+          🚨 FLUSH PROTOCOL
+        </button>
+
         <!-- Live Simulation Controller -->
         <div class="sim-controls">
           <div class="sim-status-indicator" id="sim-indicator">
@@ -125,11 +159,10 @@
           </button>
         </div>
 
-        <!-- System Health Dot Indicator -->
-        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-          <span class="status-dot dot-normal dot-pulse" id="topbar-health-dot"></span>
-          <span>API Connected</span>
-        </div>
+        <!-- Sound FX Synthesizer Toggle -->
+        <button class="btn btn-outline btn-sm" id="btn-sound-toggle" onclick="toggleSoundFX()" title="Toggle Tactical Audio Effects">
+          🔊 Audio
+        </button>
 
         <button class="btn btn-primary btn-sm" onclick="openAuthModal()" title="Switch Account or Login">👤 Switch User</button>
         <button class="btn btn-outline btn-sm" onclick="auth.logout()">Logout</button>
@@ -421,6 +454,24 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- SECTION: AI SMART OPTIMIZER -->
+      <section id="section-ai-optimizer" class="content-section" style="display: none;">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">🧠 Neural AI Traffic Flow Optimizer</h2>
+            <p class="page-subtitle">Predictive congestion horizons (T+15m, T+30m) & automated green-wave split calibration</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="aiOptimizer.renderOptimizationOverview()">Recalculate Model ⟳</button>
+            <button class="btn btn-primary" onclick="aiOptimizer.runFullOptimization()">⚡ Execute City-Wide Optimization</button>
+          </div>
+        </div>
+
+        <div id="ai-optimizer-content">
+          <!-- Populated dynamically by aiOptimizer.js -->
         </div>
       </section>
 
@@ -954,6 +1005,10 @@
 <!-- JavaScript Application Modules -->
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/sound.js"></script>
+<script src="/js/weather.js"></script>
+<script src="/js/cctv.js"></script>
+<script src="/js/aiOptimizer.js"></script>
 <script src="/js/dashboard.js"></script>
 <script src="/js/traffic.js"></script>
 <script src="/js/map.js"></script>
@@ -973,6 +1028,7 @@
     map: 'Interactive City Traffic Map',
     signals: 'Traffic Signal Management',
     emergency: 'Emergency Vehicle Priority Dispatch',
+    'ai-optimizer': 'Neural AI Traffic Flow Optimizer',
     alerts: 'Alerts & Incident Notification Center',
     sensors: 'Sensor Fleet Management',
     reports: 'Traffic Reports & Historical Analytics',
@@ -1016,6 +1072,9 @@
     const mainContent = document.querySelector('.main-content');
     if (mainContent) mainContent.scrollTop = 0;
 
+    // Play subtle tactical audio click
+    if (window.soundFx) window.soundFx.playClick();
+
     // Trigger section-specific initializations safely
     try {
       if (sectionId === 'dashboard') initDashboard();
@@ -1023,6 +1082,7 @@
       else if (sectionId === 'map') initTrafficMap();
       else if (sectionId === 'signals') initSignals();
       else if (sectionId === 'emergency') initEmergency();
+      else if (sectionId === 'ai-optimizer') aiOptimizer.init();
       else if (sectionId === 'alerts') initAlerts();
       else if (sectionId === 'sensors') initSensors();
       else if (sectionId === 'reports') initReports();
@@ -1098,6 +1158,34 @@
       }
     } catch (err) {
       showToast(err.message || 'Toggle failed', 'error');
+    }
+  }
+
+  // Audio Synthesizer Controls
+  function toggleSoundFX() {
+    const isEnabled = window.soundFx.toggle();
+    const btn = document.getElementById('btn-sound-toggle');
+    if (btn) btn.textContent = isEnabled ? '🔊 Audio: ON' : '🔇 Audio: OFF';
+    showToast(`Tactical Sound Effects: ${isEnabled ? 'ACTIVE' : 'MUTED'}`, 'info', 1800);
+  }
+
+  // City Evacuation Flush Protocol
+  async function triggerCityFlushProtocol() {
+    if (confirm("⚠️ EMERGENCY PROTOCOL INITIATION:\nCommand all 7 arterial Chennai signals to lock into Outward GREEN WAVE to flush city congestion?")) {
+      if (window.soundFx) window.soundFx.playEmergencySiren();
+      showToast("🚨 EMERGENCY EVACUATION FLUSH ACTIVATED: Locking all arterial signals to GREEN WAVE for 120s...", "emergency", 5000);
+      try {
+        const signalsRes = await api.get('/signals');
+        const signals = signalsRes.data || [];
+        for (const sig of signals) {
+          await api.put(`/signals/${sig._id}`, { status: 'GREEN', mode: 'MANUAL', duration: 120 });
+        }
+        showToast("✓ All Chennai arterial signals locked to GREEN WAVE. Traffic flush in progress.", "success", 4000);
+        if (typeof loadSignals === 'function') loadSignals();
+        if (typeof loadDashboardData === 'function') loadDashboardData();
+      } catch (err) {
+        showToast(err.message || 'Protocol command failed', 'error');
+      }
     }
   }
 

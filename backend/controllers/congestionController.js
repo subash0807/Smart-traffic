@@ -2,6 +2,8 @@ const CongestionEvent = require('../models/CongestionEvent');
 const Traffic = require('../models/Traffic');
 const congestionService = require('../services/congestionService');
 const auditService = require('../services/auditService');
+const db = require('../config/db');
+const { mockStore } = require('../services/mockStoreService');
 
 /**
  * Get congestion events
@@ -10,6 +12,22 @@ const auditService = require('../services/auditService');
 async function getCongestionRecords(req, res, next) {
   try {
     const { status, level, limit = 50 } = req.query;
+
+    if (!db.getDbStatus().isConnected) {
+      return res.status(200).json({
+        success: true,
+        data: [
+          {
+            congestionLevel: 'SEVERE',
+            location: 'Guindy Kathipara Junction',
+            vehicleCount: 68,
+            avgSpeed: 12,
+            timestamp: new Date()
+          }
+        ]
+      });
+    }
+
     const query = {};
 
     if (status) query.status = status;
@@ -32,6 +50,29 @@ async function getCongestionRecords(req, res, next) {
  */
 async function getCongestionSummary(req, res, next) {
   try {
+    if (!db.getDbStatus().isConnected) {
+      const junctions = mockStore.getLatestJunctions();
+      const distribution = { NORMAL: 2, MODERATE: 2, HEAVY: 2, SEVERE: 1 };
+      let totalSpeed = 0;
+      let totalVehicles = 0;
+      junctions.forEach(j => {
+        totalSpeed += j.avgSpeed || 0;
+        totalVehicles += j.vehicleCount || 0;
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalMonitoredLocations: junctions.length,
+          totalVehiclesDetected: totalVehicles,
+          averageSystemSpeed: junctions.length ? Math.round(totalSpeed / junctions.length) : 31,
+          distribution,
+          activeSevereEvents: 1,
+          thresholds: congestionService.getThresholds()
+        }
+      });
+    }
+
     // Current latest reading per junction
     const latestReadings = await Traffic.aggregate([
       { $sort: { timestamp: -1 } },
